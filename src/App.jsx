@@ -61,7 +61,44 @@ const [tab,setTab]=useState("dashboard"), [base,setBase]=useState(initialBase), 
  const filteredRows=useMemo(()=>!search.trim()?stockRows:stockRows.filter(r=>String(r.size).includes(search.trim())),[search,stockRows]);
  const totals=useMemo(()=>({current:stockRows.reduce((a,b)=>a+b.current,0),pending:stockRows.reduce((a,b)=>a+b.pending,0),future:stockRows.reduce((a,b)=>a+b.future,0),consumed:stockRows.reduce((a,b)=>a+b.consumed,0),belowMin:stockRows.filter(r=>r.current<r.minimum).length}),[stockRows]);
  const infantRows=stockRows.filter(r=>r.size<=33), adultRows=stockRows.filter(r=>r.size>=34), maxCurrent=Math.max(...stockRows.map(r=>r.current),1);
- const addOrder=()=>{if(!newOrder.supplier.trim())return; const cleaned={...newOrder,ped:Object.fromEntries(Object.entries(newOrder.ped).filter(([,v])=>Number(v)>0)),rec:Object.fromEntries(Object.entries(newOrder.rec).filter(([,v])=>Number(v)>0))}; if(newOrder.id){setOrders(prev=>prev.map(o=>o.id===newOrder.id?cleaned:o));} else {setOrders(prev=>[{...cleaned,id:Date.now()},...prev]);} setNewOrder({id:null,date:"2026-03-17",supplier:"",note:"",ped:{},rec:{}});};
+const addOrder = async () => {
+  if (!newOrder.supplier.trim()) return;
+
+  const cleaned = {
+    date: newOrder.date,
+    supplier: newOrder.supplier,
+    note: newOrder.note,
+    ped: Object.fromEntries(Object.entries(newOrder.ped).filter(([,v]) => Number(v) > 0)),
+    rec: Object.fromEntries(Object.entries(newOrder.rec).filter(([,v]) => Number(v) > 0))
+  };
+
+  if (newOrder.id) {
+    const { data, error } = await supabase
+      .from("orders")
+      .update(cleaned)
+      .eq("id", newOrder.id)
+      .select();
+
+    if (!error && data) {
+      setOrders(prev => prev.map(o => o.id === newOrder.id ? data[0] : o));
+    } else {
+      console.log("ERRO AO ATUALIZAR PEDIDO:", error);
+    }
+  } else {
+    const { data, error } = await supabase
+      .from("orders")
+      .insert([cleaned])
+      .select();
+
+    if (!error && data) {
+      setOrders(prev => [data[0], ...prev]);
+    } else {
+      console.log("ERRO AO SALVAR PEDIDO:", error);
+    }
+  }
+
+  setNewOrder({ id:null, date:"2026-03-17", supplier:"", note:"", ped:{}, rec:{} });
+};
  const addOutput=()=>{if(!newOutput.note.trim()&&sumMap(newOutput.qty)===0)return; const cleaned={...newOutput,qty:Object.fromEntries(Object.entries(newOutput.qty).filter(([,v])=>Number(v)>0))}; if(newOutput.id){setOutputs(prev=>prev.map(o=>o.id===newOutput.id?cleaned:o));} else {setOutputs(prev=>[{...cleaned,id:Date.now()},...prev]);} setNewOutput({id:null,date:"2026-03-17",note:"",qty:{}});};
  const table=(rows)=><div className="table-wrap"><table className="stock-table"><thead><tr><th>Nº</th><th>Em pedido</th><th>Atual</th><th>Futuro</th><th>Mínimo</th><th>Status</th></tr></thead><tbody>{rows.map(r=><tr key={r.size}><td><strong>{r.size}</strong></td><td className="num">{r.pending}</td><td className="num">{r.current}</td><td className="num"><strong>{r.future}</strong></td><td className="num">{r.minimum}</td><td className="num"><span className={statusClasses(r.status)}>{r.status}</span></td></tr>)}</tbody></table></div>;
  return <div className="page"><div className="container">

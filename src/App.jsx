@@ -29,18 +29,7 @@ export default function App() {
 
     testar();
   }, []);
-{useEffect(() => {
-  async function testar() {
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*");
 
-    console.log("DADOS DO BANCO:", data);
-    console.log("ERRO:", error);
-  }
-
-  testar();
-}, []);
  const [tab,setTab]=useState("dashboard"), [base,setBase]=useState(initialBase), [orders,setOrders]=useState(initialOrders), [outputs,setOutputs]=useState(initialOutputs), [search,setSearch]=useState("");
  const [newOrder,setNewOrder]=useState({id:null,date:"2026-03-17",supplier:"",note:"",ped:{},rec:{}});
  const [newOutput,setNewOutput]=useState({id:null,date:"2026-03-17",note:"",qty:{}});

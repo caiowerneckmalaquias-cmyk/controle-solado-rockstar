@@ -4,7 +4,7 @@
 /* GRID FIXO E ALINHADO */
 .size-grid {
   display: grid;
-  grid-template-columns: repeat(8, 1fr); /* FIXO */
+  grid-template-columns: repeat(8, 1fr);
   gap: 12px;
   align-items: start;
 }
@@ -37,6 +37,7 @@
   border-radius: 8px;
 }
 
+/* TABELA */
 .stock-table {
   width: 100%;
   border-collapse: collapse;
@@ -56,18 +57,52 @@
   font-weight: 700;
 }
 
-/* força tudo centralizado */
 .stock-table .num {
   text-align: center;
 }
 
-/* primeira coluna (Nº) mais forte */
-.stock-table td:first-child {
+.stock-table td:first-child,
+.stock-table th:first-child {
   font-weight: 700;
 }
 
-/* status perfeitamente centralizado */
 .stock-table td:last-child {
   display: flex;
   justify-content: center;
+}
+
+/* AJUSTE FINO DE COLUNAS */
+.stock-table th,
+.stock-table td {
+  padding: 14px 0 !important;
+}
+
+/* REMOVE LIMITE QUE DEFORMA A TABELA */
+.stock-table {
+  min-width: unset !important;
+}
+
+/* CONTROLE REAL DAS COLUNAS */
+.stock-table th:nth-child(1),
+.stock-table td:nth-child(1) {
+  width: 12%;
+}
+
+.stock-table th:nth-child(2),
+.stock-table td:nth-child(2),
+.stock-table th:nth-child(3),
+.stock-table td:nth-child(3),
+.stock-table th:nth-child(4),
+.stock-table td:nth-child(4),
+.stock-table th:nth-child(5),
+.stock-table td:nth-child(5) {
+  width: 14%;
+}
+
+.stock-table th:nth-child(6),
+.stock-table td:nth-child(6) {
+  width: 16%;
+}
+.stock-table td:last-child .status {
+  margin: 0 auto;
 }

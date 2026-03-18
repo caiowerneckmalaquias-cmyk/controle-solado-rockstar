@@ -18,9 +18,7 @@ const sumMap = (m = {}) =>
   Object.values(m).reduce((a, v) => a + (Number(v) || 0), 0);
 
 const filterPositiveMap = (m = {}) =>
-  Object.fromEntries(
-    Object.entries(m).filter(([, v]) => Number(v) > 0)
-  );
+  Object.fromEntries(Object.entries(m).filter(([, v]) => Number(v) > 0));
 
 const formatQtyMap = (m = {}) => {
   const entries = Object.entries(m).filter(([, v]) => Number(v) > 0);
@@ -190,7 +188,10 @@ export default function App() {
   }, []);
 
   const entriesLinkedToOrders = useMemo(
-    () => entries.filter((entry) => entry.order_id !== null && entry.order_id !== undefined),
+    () =>
+      entries.filter(
+        (entry) => entry.order_id !== null && entry.order_id !== undefined
+      ),
     [entries]
   );
 
@@ -275,10 +276,15 @@ export default function App() {
     const stats = {};
 
     orders.forEach((order) => {
-      const linkedEntries = entries.filter((entry) => Number(entry.order_id) === Number(order.id));
+      const linkedEntries = entries.filter(
+        (entry) => Number(entry.order_id) === Number(order.id)
+      );
 
       const totalOrdered = sumMap(order.ped);
-      const totalReceived = linkedEntries.reduce((acc, entry) => acc + sumMap(entry.qty), 0);
+      const totalReceived = linkedEntries.reduce(
+        (acc, entry) => acc + sumMap(entry.qty),
+        0
+      );
       const totalPending = Math.max(0, totalOrdered - totalReceived);
 
       stats[order.id] = {
@@ -323,10 +329,12 @@ export default function App() {
       detail: formatQtyMap(output.qty),
     }));
 
-    return [...orderMovements, ...entryMovements, ...outputMovements].sort((a, b) => {
-      if (a.date === b.date) return a.type.localeCompare(b.type);
-      return b.date.localeCompare(a.date);
-    });
+    return [...orderMovements, ...entryMovements, ...outputMovements].sort(
+      (a, b) => {
+        if (a.date === b.date) return a.type.localeCompare(b.type);
+        return b.date.localeCompare(a.date);
+      }
+    );
   }, [orders, entries, outputs]);
 
   const addOrder = async () => {
@@ -355,7 +363,9 @@ export default function App() {
         .select();
 
       if (!error && data) {
-        setOrders((prev) => prev.map((o) => (o.id === newOrder.id ? data[0] : o)));
+        setOrders((prev) =>
+          prev.map((o) => (o.id === newOrder.id ? data[0] : o))
+        );
         setNewOrder(emptyOrder());
         showBanner("success", "Pedido atualizado com sucesso.");
       } else {
@@ -365,7 +375,10 @@ export default function App() {
       return;
     }
 
-    const { data, error } = await supabase.from("orders").insert([cleaned]).select();
+    const { data, error } = await supabase
+      .from("orders")
+      .insert([cleaned])
+      .select();
 
     if (!error && data) {
       setOrders((prev) => [data[0], ...prev]);
@@ -399,7 +412,9 @@ export default function App() {
         .select();
 
       if (!error && data) {
-        setEntries((prev) => prev.map((e) => (e.id === newEntry.id ? data[0] : e)));
+        setEntries((prev) =>
+          prev.map((e) => (e.id === newEntry.id ? data[0] : e))
+        );
         setNewEntry(emptyEntry());
         showBanner("success", "Entrada atualizada com sucesso.");
       } else {
@@ -409,7 +424,10 @@ export default function App() {
       return;
     }
 
-    const { data, error } = await supabase.from("entries").insert([cleaned]).select();
+    const { data, error } = await supabase
+      .from("entries")
+      .insert([cleaned])
+      .select();
 
     if (!error && data) {
       setEntries((prev) => [data[0], ...prev]);
@@ -441,7 +459,9 @@ export default function App() {
         .select();
 
       if (!error && data) {
-        setOutputs((prev) => prev.map((o) => (o.id === newOutput.id ? data[0] : o)));
+        setOutputs((prev) =>
+          prev.map((o) => (o.id === newOutput.id ? data[0] : o))
+        );
         setNewOutput(emptyOutput());
         showBanner("success", "Saída atualizada com sucesso.");
       } else {
@@ -451,7 +471,10 @@ export default function App() {
       return;
     }
 
-    const { data, error } = await supabase.from("outputs").insert([cleaned]).select();
+    const { data, error } = await supabase
+      .from("outputs")
+      .insert([cleaned])
+      .select();
 
     if (!error && data) {
       setOutputs((prev) => [data[0], ...prev]);
@@ -530,13 +553,13 @@ export default function App() {
     }
   };
 
-  const stockTable = (rows) => (
+  const stockTable = (rows, hideEntries = false) => (
     <div className="table-wrap">
       <table className="stock-table">
         <thead>
           <tr>
             <th>Nº</th>
-            <th>Entradas</th>
+            {!hideEntries && <th>Entradas</th>}
             <th>Em pedido</th>
             <th>Atual</th>
             <th>Futuro</th>
@@ -550,7 +573,9 @@ export default function App() {
               <td>
                 <strong>{r.size}</strong>
               </td>
-              <td className="num">{r.received}</td>
+
+              {!hideEntries && <td className="num">{r.received}</td>}
+
               <td className="num">{r.pending}</td>
               <td className="num">{r.current}</td>
               <td className="num">
@@ -589,7 +614,9 @@ export default function App() {
               <img src="/logo-rockstar.png" alt="Rock Star" className="hero-logo" />
               <div>
                 <h1>CONTROLE DE SOLADO</h1>
-                <p className="subtle">App instalável no celular • branco, vermelho e azul</p>
+                <p className="subtle">
+                  App instalável no celular • branco, vermelho e azul
+                </p>
               </div>
             </div>
           </div>
@@ -665,7 +692,10 @@ export default function App() {
         {tab === "dashboard" && (
           <div className="stack">
             <div className="grid-two">
-              <Card title="Estoque infantil" right={<span className="mini-tag tag-yellow">25 a 33</span>}>
+              <Card
+                title="Estoque infantil"
+                right={<span className="mini-tag tag-yellow">25 a 33</span>}
+              >
                 <div className="stack-sm">
                   {infantRows.map((r) => (
                     <div key={r.size} className="mini-card">
@@ -690,7 +720,10 @@ export default function App() {
                 </div>
               </Card>
 
-              <Card title="Estoque adulto" right={<span className="mini-tag tag-blue">34 a 44</span>}>
+              <Card
+                title="Estoque adulto"
+                right={<span className="mini-tag tag-blue">34 a 44</span>}
+              >
                 <div className="stack-sm">
                   {adultRows.map((r) => (
                     <div key={r.size} className="mini-card">
@@ -763,7 +796,9 @@ export default function App() {
               <Card title="Sugestão de compra">
                 <div className="stack-sm">
                   {purchaseSuggestions.length === 0 ? (
-                    <div className="notice-success">Nenhuma compra necessária agora.</div>
+                    <div className="notice-success">
+                      Nenhuma compra necessária agora.
+                    </div>
                   ) : (
                     purchaseSuggestions.map((item) => (
                       <div key={item.size} className="mini-card white">
@@ -796,7 +831,7 @@ export default function App() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </Card>
-            <Card title="Controle completo">{stockTable(filteredRows)}</Card>
+            <Card title="Controle completo">{stockTable(filteredRows, true)}</Card>
           </div>
         )}
 
@@ -821,7 +856,9 @@ export default function App() {
                   <InputField
                     type="date"
                     value={newOrder.date}
-                    onChange={(e) => setNewOrder((prev) => ({ ...prev, date: e.target.value }))}
+                    onChange={(e) =>
+                      setNewOrder((prev) => ({ ...prev, date: e.target.value }))
+                    }
                   />
 
                   <InputField
@@ -835,11 +872,14 @@ export default function App() {
                   <InputField
                     placeholder="Observação"
                     value={newOrder.note}
-                    onChange={(e) => setNewOrder((prev) => ({ ...prev, note: e.target.value }))}
+                    onChange={(e) =>
+                      setNewOrder((prev) => ({ ...prev, note: e.target.value }))
+                    }
                   />
 
                   <div className="small muted">
-                    Total pedido: <strong style={{ color: "#0f172a" }}>{sumMap(newOrder.ped)}</strong>
+                    Total pedido:{" "}
+                    <strong style={{ color: "#0f172a" }}>{sumMap(newOrder.ped)}</strong>
                   </div>
 
                   <div className="actions">
@@ -848,7 +888,10 @@ export default function App() {
                     </button>
 
                     {newOrder.id && (
-                      <button className="btn btn-secondary" onClick={() => setNewOrder(emptyOrder())}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setNewOrder(emptyOrder())}
+                      >
                         Cancelar
                       </button>
                     )}
@@ -894,10 +937,19 @@ export default function App() {
                           </div>
 
                           <div className="tag-row">
-                            <span className="outline-tag">Pedido {stats.totalOrdered}</span>
-                            <span className="outline-tag">Recebido {stats.totalReceived}</span>
-                            <span className="outline-tag">Falta {stats.totalPending}</span>
-                            <button className="btn btn-secondary" onClick={() => deleteOrder(order.id)}>
+                            <span className="outline-tag">
+                              Pedido {stats.totalOrdered}
+                            </span>
+                            <span className="outline-tag">
+                              Recebido {stats.totalReceived}
+                            </span>
+                            <span className="outline-tag">
+                              Falta {stats.totalPending}
+                            </span>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => deleteOrder(order.id)}
+                            >
                               Excluir
                             </button>
                           </div>
@@ -940,7 +992,9 @@ export default function App() {
                   <InputField
                     type="date"
                     value={newEntry.date}
-                    onChange={(e) => setNewEntry((prev) => ({ ...prev, date: e.target.value }))}
+                    onChange={(e) =>
+                      setNewEntry((prev) => ({ ...prev, date: e.target.value }))
+                    }
                   />
 
                   <InputField
@@ -954,7 +1008,9 @@ export default function App() {
                   <InputField
                     placeholder="Observação"
                     value={newEntry.note}
-                    onChange={(e) => setNewEntry((prev) => ({ ...prev, note: e.target.value }))}
+                    onChange={(e) =>
+                      setNewEntry((prev) => ({ ...prev, note: e.target.value }))
+                    }
                   />
 
                   <SelectField
@@ -981,7 +1037,10 @@ export default function App() {
                     </button>
 
                     {newEntry.id && (
-                      <button className="btn btn-secondary" onClick={() => setNewEntry(emptyEntry())}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setNewEntry(emptyEntry())}
+                      >
                         Cancelar
                       </button>
                     )}
@@ -1018,13 +1077,18 @@ export default function App() {
                             {entry.date} • {entry.note || "Sem observação"}
                           </div>
                           <div className="tiny muted" style={{ marginTop: "6px" }}>
-                            {entry.order_id ? `Vinculado ao pedido #${entry.order_id}` : "Sem pedido vinculado"}
+                            {entry.order_id
+                              ? `Vinculado ao pedido #${entry.order_id}`
+                              : "Sem pedido vinculado"}
                           </div>
                         </div>
 
                         <div className="tag-row">
                           <div className="outline-tag">Entrada {sumMap(entry.qty)}</div>
-                          <button className="btn btn-secondary" onClick={() => deleteEntry(entry.id)}>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => deleteEntry(entry.id)}
+                          >
                             Excluir
                           </button>
                         </div>
@@ -1062,13 +1126,17 @@ export default function App() {
                   <InputField
                     type="date"
                     value={newOutput.date}
-                    onChange={(e) => setNewOutput((prev) => ({ ...prev, date: e.target.value }))}
+                    onChange={(e) =>
+                      setNewOutput((prev) => ({ ...prev, date: e.target.value }))
+                    }
                   />
 
                   <InputField
                     placeholder="Observação da produção"
                     value={newOutput.note}
-                    onChange={(e) => setNewOutput((prev) => ({ ...prev, note: e.target.value }))}
+                    onChange={(e) =>
+                      setNewOutput((prev) => ({ ...prev, note: e.target.value }))
+                    }
                   />
 
                   <div className="small muted">
@@ -1081,7 +1149,10 @@ export default function App() {
                     </button>
 
                     {newOutput.id && (
-                      <button className="btn btn-secondary" onClick={() => setNewOutput(emptyOutput())}>
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() => setNewOutput(emptyOutput())}
+                      >
                         Cancelar
                       </button>
                     )}
@@ -1117,7 +1188,10 @@ export default function App() {
 
                         <div className="tag-row">
                           <div className="outline-tag">Consumido {sumMap(out.qty)}</div>
-                          <button className="btn btn-secondary" onClick={() => deleteOutput(out.id)}>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => deleteOutput(out.id)}
+                          >
                             Excluir
                           </button>
                         </div>

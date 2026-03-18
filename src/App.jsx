@@ -1,197 +1,942 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "./supabase";
-const infantSizes=Array.from({length:9},(_,i)=>25+i);
-const adultSizes=Array.from({length:11},(_,i)=>34+i);
-const allSizes=Array.from({length:20},(_,i)=>25+i);
-const initialBase=allSizes.map(size=>({size,initial:size<=33?Math.max(4,18-(33-size)):Math.max(6,22-(44-size)),min:size<=33?8:12}));
-const initialOrders=[{id:1,date:"2026-03-15",supplier:"Solados Minas",note:"Reposição semanal",ped:{34:20,35:30,36:25,37:20,38:15},rec:{34:10,35:10,36:0,37:0,38:0}},{id:2,date:"2026-03-16",supplier:"Couro Forte",note:"Linha infantil",ped:{27:15,28:20,29:20,30:18,31:10},rec:{27:15,28:10,29:0,30:0,31:0}}];
-const initialOutputs=[{id:1,date:"2026-03-16",note:"Produção cano alto",qty:{34:6,35:4,36:2}},{id:2,date:"2026-03-17",note:"Produção infantil",qty:{27:3,28:2,29:4}}];
-const sumMap=(m={})=>Object.values(m).reduce((a,v)=>a+(Number(v)||0),0);
-const getStatus=(c,m,p)=>c<m?(p>0?"Em pedido":"Comprar"):"OK";
-const statusClasses=s=>s==="Comprar"?"status status-red":s==="Em pedido"?"status status-yellow":"status status-green";
-const Card=({title,children,right})=><div className="card">{(title||right)&&<div className="card-header"><h3>{title}</h3>{right}</div>}<div className="card-body">{children}</div></div>;
-const MetricCard=({title,value,hint,className=""})=><div className={`metric-card ${className}`}><div className="metric-title">{title}</div><div className="metric-value">{value}</div><div className="metric-hint">{hint}</div></div>;
-const InputField=(p)=><input {...p} className={`input ${p.className||""}`} />;
-const ProgressBar=({value,className=""})=><div className="progress-track"><div className={`progress-bar ${className}`} style={{width:`${Math.max(0,Math.min(100,value))}%`}}/></div>;
-const TabButton=({active,onClick,children})=><button onClick={onClick} className={`tab-button ${active?"tab-active":""}`}>{children}</button>;
-const SizeGrid=({title,sizes,values,editable=false,onChange})=><Card title={title}><div className="size-grid">{sizes.map(size=><div key={size} className="size-box"><div className="size-label">Nº {size}</div>{editable?<InputField type="number" min="0" value={values[size]??""} onChange={e=>onChange(size,e.target.value)}/>:<div className="size-value">{values[size]||0}</div>}</div>)}</div></Card>;
+
+const infantSizes = Array.from({ length: 9 }, (_, i) => 25 + i);
+const adultSizes = Array.from({ length: 11 }, (_, i) => 34 + i);
+const allSizes = Array.from({ length: 20 }, (_, i) => 25 + i);
+
+const initialBase = allSizes.map((size) => ({
+  size,
+  initial:
+    size <= 33 ? Math.max(4, 18 - (33 - size)) : Math.max(6, 22 - (44 - size)),
+  min: size <= 33 ? 8 : 12,
+}));
+
+const initialOrders = [
+  {
+    id: 1,
+    date: "2026-03-15",
+    supplier: "Solados Minas",
+    note: "Reposição semanal",
+    ped: { 34: 20, 35: 30, 36: 25, 37: 20, 38: 15 },
+    rec: { 34: 10, 35: 10, 36: 0, 37: 0, 38: 0 },
+  },
+  {
+    id: 2,
+    date: "2026-03-16",
+    supplier: "Couro Forte",
+    note: "Linha infantil",
+    ped: { 27: 15, 28: 20, 29: 20, 30: 18, 31: 10 },
+    rec: { 27: 15, 28: 10, 29: 0, 30: 0, 31: 0 },
+  },
+];
+
+const initialOutputs = [
+  {
+    id: 1,
+    date: "2026-03-16",
+    note: "Produção cano alto",
+    qty: { 34: 6, 35: 4, 36: 2 },
+  },
+  {
+    id: 2,
+    date: "2026-03-17",
+    note: "Produção infantil",
+    qty: { 27: 3, 28: 2, 29: 4 },
+  },
+];
+
+const sumMap = (m = {}) =>
+  Object.values(m).reduce((a, v) => a + (Number(v) || 0), 0);
+
+const getStatus = (current, minimum, pending) =>
+  current < minimum ? (pending > 0 ? "Em pedido" : "Comprar") : "OK";
+
+const statusClasses = (status) =>
+  status === "Comprar"
+    ? "status status-red"
+    : status === "Em pedido"
+    ? "status status-yellow"
+    : "status status-green";
+
+const Card = ({ title, children, right }) => (
+  <div className="card">
+    {(title || right) && (
+      <div className="card-header">
+        <h3>{title}</h3>
+        {right}
+      </div>
+    )}
+    <div className="card-body">{children}</div>
+  </div>
+);
+
+const MetricCard = ({ title, value, hint, className = "" }) => (
+  <div className={`metric-card ${className}`}>
+    <div className="metric-title">{title}</div>
+    <div className="metric-value">{value}</div>
+    <div className="metric-hint">{hint}</div>
+  </div>
+);
+
+const InputField = (props) => (
+  <input {...props} className={`input ${props.className || ""}`} />
+);
+
+const ProgressBar = ({ value, className = "" }) => (
+  <div className="progress-track">
+    <div
+      className={`progress-bar ${className}`}
+      style={{ width: `${Math.max(0, Math.min(100, value))}%` }}
+    />
+  </div>
+);
+
+const TabButton = ({ active, onClick, children }) => (
+  <button onClick={onClick} className={`tab-button ${active ? "tab-active" : ""}`}>
+    {children}
+  </button>
+);
+
+const SizeGrid = ({ title, sizes, values, editable = false, onChange }) => (
+  <Card title={title}>
+    <div className="size-grid">
+      {sizes.map((size) => (
+        <div key={size} className="size-box">
+          <div className="size-label">Nº {size}</div>
+          {editable ? (
+            <InputField
+              type="number"
+              min="0"
+              value={values[size] ?? ""}
+              onChange={(e) => onChange(size, e.target.value)}
+            />
+          ) : (
+            <div className="size-value">{values[size] || 0}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  </Card>
+);
 
 export default function App() {
-useEffect(() => {
-  async function carregarDados() {
-    const { data: ordersData, error: ordersError } = await supabase
-      .from("orders")
-      .select("*")
-      .order("id", { ascending: false });
+  const [tab, setTab] = useState("dashboard");
+  const [base, setBase] = useState(initialBase);
+  const [orders, setOrders] = useState(initialOrders);
+  const [outputs, setOutputs] = useState(initialOutputs);
+  const [search, setSearch] = useState("");
 
-    if (!ordersError && ordersData) {
-      setOrders(ordersData);
+  const [newOrder, setNewOrder] = useState({
+    id: null,
+    date: "2026-03-17",
+    supplier: "",
+    note: "",
+    ped: {},
+    rec: {},
+  });
+
+  const [newOutput, setNewOutput] = useState({
+    id: null,
+    date: "2026-03-17",
+    note: "",
+    qty: {},
+  });
+
+  useEffect(() => {
+    async function carregarDados() {
+      const { data: ordersData, error: ordersError } = await supabase
+        .from("orders")
+        .select("*")
+        .order("id", { ascending: false });
+
+      if (!ordersError && ordersData) {
+        setOrders(ordersData);
+      }
+
+      const { data: outputsData, error: outputsError } = await supabase
+        .from("outputs")
+        .select("*")
+        .order("id", { ascending: false });
+
+      if (!outputsError && outputsData) {
+        setOutputs(outputsData);
+      }
+
+      const { data: baseData, error: baseError } = await supabase
+        .from("base")
+        .select("*")
+        .order("size", { ascending: true });
+
+      if (!baseError && baseData && baseData.length > 0) {
+        setBase(baseData);
+      }
+
+      console.log("ORDERS:", ordersData);
+      console.log("OUTPUTS:", outputsData);
+      console.log("BASE:", baseData);
     }
 
-    const { data: outputsData, error: outputsError } = await supabase
-      .from("outputs")
-      .select("*")
-      .order("id", { ascending: false });
+    carregarDados();
+  }, []);
 
-    if (!outputsError && outputsData) {
-      setOutputs(outputsData);
-    }
+  const stockRows = useMemo(() => {
+    return allSizes.map((size) => {
+      const b = base.find((i) => i.size === size) || { initial: 0, min: 0 };
 
-    const { data: baseData, error: baseError } = await supabase
-      .from("base")
-      .select("*")
-      .order("size", { ascending: true });
+      const received = orders.reduce(
+        (a, o) => a + (Number(o.rec?.[size]) || 0),
+        0
+      );
+      const ordered = orders.reduce(
+        (a, o) => a + (Number(o.ped?.[size]) || 0),
+        0
+      );
+      const pending = Math.max(0, ordered - received);
+      const consumed = outputs.reduce(
+        (a, o) => a + (Number(o.qty?.[size]) || 0),
+        0
+      );
 
-    if (!baseError && baseData && baseData.length > 0) {
-      setBase(baseData);
-    }
+      const current = Number(b.initial || 0) + received - consumed;
+      const future = current + pending;
+      const minimum = Number(b.min || 0);
 
-    console.log("ORDERS:", ordersData);
-    console.log("OUTPUTS:", outputsData);
-    console.log("BASE:", baseData);
-  }
+      return {
+        size,
+        initial: b.initial || 0,
+        minimum,
+        received,
+        pending,
+        consumed,
+        current,
+        future,
+        status: getStatus(current, minimum, pending),
+      };
+    });
+  }, [base, orders, outputs]);
 
-  carregarDados();
-}, []);
+  const filteredRows = useMemo(() => {
+    if (!search.trim()) return stockRows;
+    return stockRows.filter((r) => String(r.size).includes(search.trim()));
+  }, [search, stockRows]);
 
-const [tab,setTab]=useState("dashboard"), [base,setBase]=useState(initialBase), [orders,setOrders]=useState(initialOrders), [outputs,setOutputs]=useState(initialOutputs), [search,setSearch]=useState("");
- const [newOrder,setNewOrder]=useState({id:null,date:"2026-03-17",supplier:"",note:"",ped:{},rec:{}});
- const [newOutput,setNewOutput]=useState({id:null,date:"2026-03-17",note:"",qty:{}});
- const stockRows=useMemo(()=>allSizes.map(size=>{const b=base.find(i=>i.size===size)||{initial:0,min:0}; const received=orders.reduce((a,o)=>a+(Number(o.rec?.[size])||0),0); const ordered=orders.reduce((a,o)=>a+(Number(o.ped?.[size])||0),0); const pending=Math.max(0,ordered-received); const consumed=outputs.reduce((a,o)=>a+(Number(o.qty?.[size])||0),0); const current=Number(b.initial||0)+received-consumed; const future=current+pending; const minimum=Number(b.min||0); return {size,initial:b.initial||0,minimum,received,pending,consumed,current,future,status:getStatus(current,minimum,pending)};}),[base,orders,outputs]);
- const filteredRows=useMemo(()=>!search.trim()?stockRows:stockRows.filter(r=>String(r.size).includes(search.trim())),[search,stockRows]);
- const totals=useMemo(()=>({current:stockRows.reduce((a,b)=>a+b.current,0),pending:stockRows.reduce((a,b)=>a+b.pending,0),future:stockRows.reduce((a,b)=>a+b.future,0),consumed:stockRows.reduce((a,b)=>a+b.consumed,0),belowMin:stockRows.filter(r=>r.current<r.minimum).length}),[stockRows]);
- const infantRows=stockRows.filter(r=>r.size<=33), adultRows=stockRows.filter(r=>r.size>=34), maxCurrent=Math.max(...stockRows.map(r=>r.current),1);
-const addOrder = async () => {
-  if (!newOrder.supplier.trim()) return;
-
-  const cleaned = {
-    date: newOrder.date,
-    supplier: newOrder.supplier,
-    note: newOrder.note,
-    ped: Object.fromEntries(Object.entries(newOrder.ped).filter(([,v]) => Number(v) > 0)),
-    rec: Object.fromEntries(Object.entries(newOrder.rec).filter(([,v]) => Number(v) > 0))
-  };
-
-  if (newOrder.id) {
-    const { data, error } = await supabase
-      .from("orders")
-      .update(cleaned)
-      .eq("id", newOrder.id)
-      .select();
-
-    if (!error && data) {
-      setOrders(prev => prev.map(o => o.id === newOrder.id ? data[0] : o));
-    } else {
-      console.log("ERRO AO ATUALIZAR PEDIDO:", error);
-    }
-  } else {
-    const { data, error } = await supabase
-      .from("orders")
-      .insert([cleaned])
-      .select();
-
-    if (!error && data) {
-      setOrders(prev => [data[0], ...prev]);
-    } else {
-      console.log("ERRO AO SALVAR PEDIDO:", error);
-    }
-  }
-
-  setNewOrder({ id:null, date:"2026-03-17", supplier:"", note:"", ped:{}, rec:{} });
-};
- const addOutput = async () => {
-  if (!newOutput.note.trim() && sumMap(newOutput.qty) === 0) return;
-
-  const cleaned = {
-    date: newOutput.date,
-    note: newOutput.note,
-    qty: Object.fromEntries(
-      Object.entries(newOutput.qty).filter(([, v]) => Number(v) > 0)
-    )
-  };
-
-  if (newOutput.id) {
-    const { data, error } = await supabase
-      .from("outputs")
-      .update(cleaned)
-      .eq("id", newOutput.id)
-      .select();
-
-    if (!error && data) {
-      setOutputs(prev => prev.map(o => o.id === newOutput.id ? data[0] : o));
-    } else {
-      console.log("ERRO AO ATUALIZAR SAÍDA:", error);
-    }
-  } else {
-    const { data, error } = await supabase
-      .from("outputs")
-      .insert([cleaned])
-      .select();
-
-    if (!error && data) {
-      setOutputs(prev => [data[0], ...prev]);
-    } else {
-      console.log("ERRO AO SALVAR SAÍDA:", error);
-    }
-  }
-
-  setNewOutput({ id: null, date: "2026-03-17", note: "", qty: {} });
-};
-
-const saveBaseRow = async (size, field, value) => {
-  const numericValue = Number(value) || 0;
-
-  setBase((prev) =>
-    prev.map((item) =>
-      item.size === size ? { ...item, [field]: numericValue } : item
-    )
+  const totals = useMemo(
+    () => ({
+      current: stockRows.reduce((a, b) => a + b.current, 0),
+      pending: stockRows.reduce((a, b) => a + b.pending, 0),
+      future: stockRows.reduce((a, b) => a + b.future, 0),
+      consumed: stockRows.reduce((a, b) => a + b.consumed, 0),
+      belowMin: stockRows.filter((r) => r.current < r.minimum).length,
+    }),
+    [stockRows]
   );
 
-  const currentRow = base.find((item) => item.size === size);
+  const infantRows = stockRows.filter((r) => r.size <= 33);
+  const adultRows = stockRows.filter((r) => r.size >= 34);
+  const maxCurrent = Math.max(...stockRows.map((r) => r.current), 1);
 
-  if (currentRow) {
-    const updatedRow = {
-      size,
-      initial: field === "initial" ? numericValue : currentRow.initial,
-      min: field === "min" ? numericValue : currentRow.min,
+  const addOrder = async () => {
+    if (!newOrder.supplier.trim()) return;
+
+    const cleaned = {
+      date: newOrder.date,
+      supplier: newOrder.supplier,
+      note: newOrder.note,
+      ped: Object.fromEntries(
+        Object.entries(newOrder.ped).filter(([, v]) => Number(v) > 0)
+      ),
+      rec: Object.fromEntries(
+        Object.entries(newOrder.rec).filter(([, v]) => Number(v) > 0)
+      ),
     };
 
-    const { data: existing } = await supabase
-      .from("base")
-      .select("*")
-      .eq("size", size)
-      .maybeSingle();
+    if (newOrder.id) {
+      const { data, error } = await supabase
+        .from("orders")
+        .update(cleaned)
+        .eq("id", newOrder.id)
+        .select();
 
-    if (existing) {
-      const { error } = await supabase
-        .from("base")
-        .update(updatedRow)
-        .eq("size", size);
-
-      if (error) {
-        console.log("ERRO AO ATUALIZAR BASE:", error);
+      if (!error && data) {
+        setOrders((prev) =>
+          prev.map((o) => (o.id === newOrder.id ? data[0] : o))
+        );
+      } else {
+        console.log("ERRO AO ATUALIZAR PEDIDO:", error);
       }
     } else {
-      const { error } = await supabase
-        .from("base")
-        .insert([updatedRow]);
+      const { data, error } = await supabase
+        .from("orders")
+        .insert([cleaned])
+        .select();
 
-      if (error) {
-        console.log("ERRO AO INSERIR BASE:", error);
+      if (!error && data) {
+        setOrders((prev) => [data[0], ...prev]);
+      } else {
+        console.log("ERRO AO SALVAR PEDIDO:", error);
       }
     }
-  }
-};
- const table=(rows)=><div className="table-wrap"><table className="stock-table"><thead><tr><th>Nº</th><th>Em pedido</th><th>Atual</th><th>Futuro</th><th>Mínimo</th><th>Status</th></tr></thead><tbody>{rows.map(r=><tr key={r.size}><td><strong>{r.size}</strong></td><td className="num">{r.pending}</td><td className="num">{r.current}</td><td className="num"><strong>{r.future}</strong></td><td className="num">{r.minimum}</td><td className="num"><span className={statusClasses(r.status)}>{r.status}</span></td></tr>)}</tbody></table></div>;
- return <div className="page"><div className="container">
- <header className="hero"><div><p className="eyebrow">Calçados Rock Star</p><div className="hero-brand"><img src="/logo-rockstar.png" alt="Rock Star" className="hero-logo"/><div><h1>CONTROLE DE SOLADO</h1><p className="subtle">App instalável no celular • branco, vermelho e azul</p></div></div></div><div className="pill">Infantil 25–33 • Adulto 34–44</div></header>
- <section className="metrics"><MetricCard title="Estoque atual" value={totals.current} hint="O que já está disponível" className="metric-green"/><MetricCard title="Em pedido" value={totals.pending} hint="O que ainda falta chegar" className="metric-yellow"/><MetricCard title="Estoque futuro" value={totals.future} hint="Atual + em pedido" className="metric-blue"/><MetricCard title="Consumido" value={totals.consumed} hint="Saídas para produção" className="metric-red"/><MetricCard title="Abaixo do mínimo" value={totals.belowMin} hint="Numerações que exigem atenção" className="metric-navy"/></section>
- <nav className="tabs"><TabButton active={tab==="dashboard"} onClick={()=>setTab("dashboard")}>Dashboard</TabButton><TabButton active={tab==="estoque"} onClick={()=>setTab("estoque")}>Estoque</TabButton><TabButton active={tab==="pedidos"} onClick={()=>setTab("pedidos")}>Pedidos</TabButton><TabButton active={tab==="saidas"} onClick={()=>setTab("saidas")}>Saídas</TabButton><TabButton active={tab==="config"} onClick={()=>setTab("config")}>Configuração</TabButton></nav>
- {tab==="dashboard"&&<div className="stack"><div className="grid-two"><Card title="Estoque infantil" right={<span className="mini-tag tag-yellow">25 a 33</span>}><div className="stack-sm">{infantRows.map(r=><div key={r.size} className="mini-card"><div className="row-between"><span><strong>Nº {r.size}</strong></span><span className="muted">{r.current} / mín. {r.minimum}</span></div><ProgressBar value={r.minimum?(r.current/r.minimum)*100:100} className={r.current<r.minimum?"bar-yellow":"bar-red"}/><div className="row-between tiny muted"><span>Atual: {r.current}</span><span>Futuro: {r.future}</span></div></div>)}</div></Card><Card title="Estoque adulto" right={<span className="mini-tag tag-blue">34 a 44</span>}><div className="stack-sm">{adultRows.map(r=><div key={r.size} className="mini-card"><div className="row-between"><span><strong>Nº {r.size}</strong></span><span className="muted">{r.current} / mín. {r.minimum}</span></div><ProgressBar value={r.minimum?(r.current/r.minimum)*100:100} className={r.current<r.minimum?"bar-yellow":"bar-blue"}/><div className="row-between tiny muted"><span>Atual: {r.current}</span><span>Futuro: {r.future}</span></div></div>)}</div></Card></div>
- <div className="grid-three"><Card title="Distribuição do estoque atual"><div className="stack-sm">{stockRows.map(r=><div key={r.size}><div className="row-between small-gap"><span><strong>Nº {r.size}</strong></span><span className="muted">{r.current}</span></div><ProgressBar value={(r.current/maxCurrent)*100} className={r.size<=33?"bar-yellow":"bar-blue"}/></div>)}</div></Card><Card title="Itens com atenção"><div className="stack-sm">{stockRows.filter(r=>r.status!=="OK").length===0?<div className="notice-success">Tudo certo no momento.</div>:stockRows.filter(r=>r.status!=="OK").map(r=><div key={r.size} className="mini-card white"><div><div><strong>Numeração {r.size}</strong></div><div className="small muted">Atual {r.current} • Futuro {r.future} • Mín. {r.minimum}</div></div><span className={statusClasses(r.status)}>{r.status}</span></div>)}</div></Card><Card title="Leitura rápida"><div className="quick-grid"><div className="quick quick-green"><span>Atual</span><strong>{totals.current}</strong></div><div className="quick quick-yellow"><span>Em pedido</span><strong>{totals.pending}</strong></div><div className="quick quick-blue"><span>Futuro</span><strong>{totals.future}</strong></div><div className="quick quick-red"><span>Consumido</span><strong>{totals.consumed}</strong></div></div></Card></div><Card title="Resumo por numeração">{table(stockRows)}</Card></div>}
- {tab==="estoque"&&<div className="stack"><Card><InputField placeholder="Pesquisar numeração..." value={search} onChange={e=>setSearch(e.target.value)}/></Card><Card title="Controle completo">{table(filteredRows)}</Card></div>}
- {tab==="pedidos"&&<div className="stack"><div className="grid-form"><SizeGrid title="Pedido de compra" sizes={allSizes} values={newOrder.ped} editable onChange={(size,value)=>setNewOrder(p=>({...p,ped:{...p.ped,[size]:Number(value)||0}}))}/><Card title={newOrder.id?"Editar pedido":"Dados do pedido"}><div className="stack-sm"><InputField type="date" value={newOrder.date} onChange={e=>setNewOrder(p=>({...p,date:e.target.value}))}/><InputField placeholder="Fornecedor" value={newOrder.supplier} onChange={e=>setNewOrder(p=>({...p,supplier:e.target.value}))}/><InputField placeholder="Observação" value={newOrder.note} onChange={e=>setNewOrder(p=>({...p,note:e.target.value}))}/><div className="small muted">Total pedido: <strong style={{color:"#0f172a"}}>{sumMap(newOrder.ped)}</strong></div><SizeGrid title="Recebido agora" sizes={allSizes} values={newOrder.rec} editable onChange={(size,value)=>setNewOrder(p=>({...p,rec:{...p.rec,[size]:Number(value)||0}}))}/><div className="actions"><button className="btn btn-primary" onClick={addOrder}>{newOrder.id?"Atualizar pedido":"Salvar pedido"}</button>{newOrder.id&&<button className="btn btn-secondary" onClick={()=>setNewOrder({id:null,date:"2026-03-17",supplier:"",note:"",ped:{},rec:{}})}>Cancelar</button>}</div></div></Card></div><Card title="Pedidos lançados"><div className="stack-sm">{orders.map(order=>{const totalPed=sumMap(order.ped), totalRec=sumMap(order.rec), totalPend=Math.max(0,totalPed-totalRec); return <div key={order.id} className="item-card" onClick={()=>setNewOrder({id:order.id,date:order.date,supplier:order.supplier,note:order.note,ped:{...order.ped},rec:{...order.rec}})}><div className="row-between"><div><div><strong>{order.supplier}</strong></div><div className="small muted">{order.date} • {order.note||"Sem observação"}</div></div><div className="tag-row"><span className="outline-tag">Pedido {totalPed}</span><span className="outline-tag">Recebido {totalRec}</span><span className="outline-tag">Falta {totalPend}</span></div></div><div className="tiny muted">Clique para editar</div></div>})}</div></Card></div>}
- {tab==="saidas"&&<div className="stack"><div className="grid-form"><SizeGrid title="Lançar saída de produção" sizes={allSizes} values={newOutput.qty} editable onChange={(size,value)=>setNewOutput(p=>({...p,qty:{...p.qty,[size]:Number(value)||0}}))}/><Card title={newOutput.id?"Editar saída":"Dados da saída"}><div className="stack-sm"><InputField type="date" value={newOutput.date} onChange={e=>setNewOutput(p=>({...p,date:e.target.value}))}/><InputField placeholder="Observação da produção" value={newOutput.note} onChange={e=>setNewOutput(p=>({...p,note:e.target.value}))}/><div className="small muted">Total consumido: <strong style={{color:"#0f172a"}}>{sumMap(newOutput.qty)}</strong></div><div className="actions"><button className="btn btn-primary" onClick={addOutput}>{newOutput.id?"Atualizar saída":"Salvar saída"}</button>{newOutput.id&&<button className="btn btn-secondary" onClick={()=>setNewOutput({id:null,date:"2026-03-17",note:"",qty:{}})}>Cancelar</button>}</div></div></Card></div><Card title="Saídas lançadas"><div className="stack-sm">{outputs.map(out=><div key={out.id} className="item-card" onClick={()=>setNewOutput({id:out.id,date:out.date,note:out.note,qty:{...out.qty}})}><div className="row-between"><div><div><strong>{out.note||"Saída sem observação"}</strong></div><div className="small muted">{out.date}</div></div><div className="outline-tag">Consumido {sumMap(out.qty)}</div></div><div className="tiny muted">Clique para editar</div></div>)}</div></Card></div>}
- {tab==="config"&&<Card title="Saldo inicial e mínimo">{table && <div className="table-wrap"><table className="stock-table"><thead><tr><th>Nº</th><th>Saldo inicial</th><th>Mínimo</th></tr></thead><tbody>{base.map(row=><tr key={row.size}><td><strong>{row.size}</strong></td><td className="num"><InputField type="number" className="mini-input" value={row.initial} onChange={e => saveBaseRow(row.size, "initial", e.target.value)}/></td><td className="num"><InputField type="number" className="mini-input" value={row.min} onChange={e => saveBaseRow(row.size, "min", e.target.value)}/></td></tr>)}</tbody></table></div>}</Card>}
- </div></div>;
+
+    setNewOrder({
+      id: null,
+      date: "2026-03-17",
+      supplier: "",
+      note: "",
+      ped: {},
+      rec: {},
+    });
+  };
+
+  const addOutput = async () => {
+    if (!newOutput.note.trim() && sumMap(newOutput.qty) === 0) return;
+
+    const cleaned = {
+      date: newOutput.date,
+      note: newOutput.note,
+      qty: Object.fromEntries(
+        Object.entries(newOutput.qty).filter(([, v]) => Number(v) > 0)
+      ),
+    };
+
+    if (newOutput.id) {
+      const { data, error } = await supabase
+        .from("outputs")
+        .update(cleaned)
+        .eq("id", newOutput.id)
+        .select();
+
+      if (!error && data) {
+        setOutputs((prev) =>
+          prev.map((o) => (o.id === newOutput.id ? data[0] : o))
+        );
+      } else {
+        console.log("ERRO AO ATUALIZAR SAÍDA:", error);
+      }
+    } else {
+      const { data, error } = await supabase
+        .from("outputs")
+        .insert([cleaned])
+        .select();
+
+      if (!error && data) {
+        setOutputs((prev) => [data[0], ...prev]);
+      } else {
+        console.log("ERRO AO SALVAR SAÍDA:", error);
+      }
+    }
+
+    setNewOutput({
+      id: null,
+      date: "2026-03-17",
+      note: "",
+      qty: {},
+    });
+  };
+
+  const saveBaseRow = async (size, field, value) => {
+    const numericValue = Number(value) || 0;
+
+    setBase((prev) =>
+      prev.map((item) =>
+        item.size === size ? { ...item, [field]: numericValue } : item
+      )
+    );
+
+    const currentRow = base.find((item) => item.size === size);
+
+    if (currentRow) {
+      const updatedRow = {
+        size,
+        initial: field === "initial" ? numericValue : currentRow.initial,
+        min: field === "min" ? numericValue : currentRow.min,
+      };
+
+      const { data: existing } = await supabase
+        .from("base")
+        .select("*")
+        .eq("size", size)
+        .maybeSingle();
+
+      if (existing) {
+        const { error } = await supabase
+          .from("base")
+          .update(updatedRow)
+          .eq("size", size);
+
+        if (error) {
+          console.log("ERRO AO ATUALIZAR BASE:", error);
+        }
+      } else {
+        const { error } = await supabase.from("base").insert([updatedRow]);
+
+        if (error) {
+          console.log("ERRO AO INSERIR BASE:", error);
+        }
+      }
+    }
+  };
+
+  const deleteOrder = async (id) => {
+    const confirmed = window.confirm("Deseja excluir este pedido?");
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("orders").delete().eq("id", id);
+
+    if (!error) {
+      setOrders((prev) => prev.filter((order) => order.id !== id));
+
+      if (newOrder.id === id) {
+        setNewOrder({
+          id: null,
+          date: "2026-03-17",
+          supplier: "",
+          note: "",
+          ped: {},
+          rec: {},
+        });
+      }
+    } else {
+      console.log("ERRO AO EXCLUIR PEDIDO:", error);
+    }
+  };
+
+  const deleteOutput = async (id) => {
+    const confirmed = window.confirm("Deseja excluir esta saída?");
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("outputs").delete().eq("id", id);
+
+    if (!error) {
+      setOutputs((prev) => prev.filter((output) => output.id !== id));
+
+      if (newOutput.id === id) {
+        setNewOutput({
+          id: null,
+          date: "2026-03-17",
+          note: "",
+          qty: {},
+        });
+      }
+    } else {
+      console.log("ERRO AO EXCLUIR SAÍDA:", error);
+    }
+  };
+
+  const table = (rows) => (
+    <div className="table-wrap">
+      <table className="stock-table">
+        <thead>
+          <tr>
+            <th>Nº</th>
+            <th>Em pedido</th>
+            <th>Atual</th>
+            <th>Futuro</th>
+            <th>Mínimo</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.size}>
+              <td>
+                <strong>{r.size}</strong>
+              </td>
+              <td className="num">{r.pending}</td>
+              <td className="num">{r.current}</td>
+              <td className="num">
+                <strong>{r.future}</strong>
+              </td>
+              <td className="num">{r.minimum}</td>
+              <td className="num">
+                <span className={statusClasses(r.status)}>{r.status}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <div className="page">
+      <div className="container">
+        <header className="hero">
+          <div>
+            <p className="eyebrow">Calçados Rock Star</p>
+            <div className="hero-brand">
+              <img src="/logo-rockstar.png" alt="Rock Star" className="hero-logo" />
+              <div>
+                <h1>CONTROLE DE SOLADO</h1>
+                <p className="subtle">App instalável no celular • branco, vermelho e azul</p>
+              </div>
+            </div>
+          </div>
+          <div className="pill">Infantil 25–33 • Adulto 34–44</div>
+        </header>
+
+        <section className="metrics">
+          <MetricCard
+            title="Estoque atual"
+            value={totals.current}
+            hint="O que já está disponível"
+            className="metric-green"
+          />
+          <MetricCard
+            title="Em pedido"
+            value={totals.pending}
+            hint="O que ainda falta chegar"
+            className="metric-yellow"
+          />
+          <MetricCard
+            title="Estoque futuro"
+            value={totals.future}
+            hint="Atual + em pedido"
+            className="metric-blue"
+          />
+          <MetricCard
+            title="Consumido"
+            value={totals.consumed}
+            hint="Saídas para produção"
+            className="metric-red"
+          />
+          <MetricCard
+            title="Abaixo do mínimo"
+            value={totals.belowMin}
+            hint="Numerações que exigem atenção"
+            className="metric-navy"
+          />
+        </section>
+
+        <nav className="tabs">
+          <TabButton active={tab === "dashboard"} onClick={() => setTab("dashboard")}>
+            Dashboard
+          </TabButton>
+          <TabButton active={tab === "estoque"} onClick={() => setTab("estoque")}>
+            Estoque
+          </TabButton>
+          <TabButton active={tab === "pedidos"} onClick={() => setTab("pedidos")}>
+            Pedidos
+          </TabButton>
+          <TabButton active={tab === "saidas"} onClick={() => setTab("saidas")}>
+            Saídas
+          </TabButton>
+          <TabButton active={tab === "config"} onClick={() => setTab("config")}>
+            Configuração
+          </TabButton>
+        </nav>
+
+        {tab === "dashboard" && (
+          <div className="stack">
+            <div className="grid-two">
+              <Card title="Estoque infantil" right={<span className="mini-tag tag-yellow">25 a 33</span>}>
+                <div className="stack-sm">
+                  {infantRows.map((r) => (
+                    <div key={r.size} className="mini-card">
+                      <div className="row-between">
+                        <span>
+                          <strong>Nº {r.size}</strong>
+                        </span>
+                        <span className="muted">
+                          {r.current} / mín. {r.minimum}
+                        </span>
+                      </div>
+                      <ProgressBar
+                        value={r.minimum ? (r.current / r.minimum) * 100 : 100}
+                        className={r.current < r.minimum ? "bar-yellow" : "bar-red"}
+                      />
+                      <div className="row-between tiny muted">
+                        <span>Atual: {r.current}</span>
+                        <span>Futuro: {r.future}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card title="Estoque adulto" right={<span className="mini-tag tag-blue">34 a 44</span>}>
+                <div className="stack-sm">
+                  {adultRows.map((r) => (
+                    <div key={r.size} className="mini-card">
+                      <div className="row-between">
+                        <span>
+                          <strong>Nº {r.size}</strong>
+                        </span>
+                        <span className="muted">
+                          {r.current} / mín. {r.minimum}
+                        </span>
+                      </div>
+                      <ProgressBar
+                        value={r.minimum ? (r.current / r.minimum) * 100 : 100}
+                        className={r.current < r.minimum ? "bar-yellow" : "bar-blue"}
+                      />
+                      <div className="row-between tiny muted">
+                        <span>Atual: {r.current}</span>
+                        <span>Futuro: {r.future}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            </div>
+
+            <div className="grid-three">
+              <Card title="Distribuição do estoque atual">
+                <div className="stack-sm">
+                  {stockRows.map((r) => (
+                    <div key={r.size}>
+                      <div className="row-between small-gap">
+                        <span>
+                          <strong>Nº {r.size}</strong>
+                        </span>
+                        <span className="muted">{r.current}</span>
+                      </div>
+                      <ProgressBar
+                        value={(r.current / maxCurrent) * 100}
+                        className={r.size <= 33 ? "bar-yellow" : "bar-blue"}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </Card>
+
+              <Card title="Itens com atenção">
+                <div className="stack-sm">
+                  {stockRows.filter((r) => r.status !== "OK").length === 0 ? (
+                    <div className="notice-success">Tudo certo no momento.</div>
+                  ) : (
+                    stockRows
+                      .filter((r) => r.status !== "OK")
+                      .map((r) => (
+                        <div key={r.size} className="mini-card white">
+                          <div>
+                            <div>
+                              <strong>Numeração {r.size}</strong>
+                            </div>
+                            <div className="small muted">
+                              Atual {r.current} • Futuro {r.future} • Mín. {r.minimum}
+                            </div>
+                          </div>
+                          <span className={statusClasses(r.status)}>{r.status}</span>
+                        </div>
+                      ))
+                  )}
+                </div>
+              </Card>
+
+              <Card title="Leitura rápida">
+                <div className="quick-grid">
+                  <div className="quick quick-green">
+                    <span>Atual</span>
+                    <strong>{totals.current}</strong>
+                  </div>
+                  <div className="quick quick-yellow">
+                    <span>Em pedido</span>
+                    <strong>{totals.pending}</strong>
+                  </div>
+                  <div className="quick quick-blue">
+                    <span>Futuro</span>
+                    <strong>{totals.future}</strong>
+                  </div>
+                  <div className="quick quick-red">
+                    <span>Consumido</span>
+                    <strong>{totals.consumed}</strong>
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <Card title="Resumo por numeração">{table(stockRows)}</Card>
+          </div>
+        )}
+
+        {tab === "estoque" && (
+          <div className="stack">
+            <Card>
+              <InputField
+                placeholder="Pesquisar numeração..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </Card>
+            <Card title="Controle completo">{table(filteredRows)}</Card>
+          </div>
+        )}
+
+        {tab === "pedidos" && (
+          <div className="stack">
+            <div className="grid-form">
+              <SizeGrid
+                title="Pedido de compra"
+                sizes={allSizes}
+                values={newOrder.ped}
+                editable
+                onChange={(size, value) =>
+                  setNewOrder((p) => ({
+                    ...p,
+                    ped: { ...p.ped, [size]: Number(value) || 0 },
+                  }))
+                }
+              />
+
+              <Card title={newOrder.id ? "Editar pedido" : "Dados do pedido"}>
+                <div className="stack-sm">
+                  <InputField
+                    type="date"
+                    value={newOrder.date}
+                    onChange={(e) => setNewOrder((p) => ({ ...p, date: e.target.value }))}
+                  />
+                  <InputField
+                    placeholder="Fornecedor"
+                    value={newOrder.supplier}
+                    onChange={(e) =>
+                      setNewOrder((p) => ({ ...p, supplier: e.target.value }))
+                    }
+                  />
+                  <InputField
+                    placeholder="Observação"
+                    value={newOrder.note}
+                    onChange={(e) => setNewOrder((p) => ({ ...p, note: e.target.value }))}
+                  />
+
+                  <div className="small muted">
+                    Total pedido: <strong style={{ color: "#0f172a" }}>{sumMap(newOrder.ped)}</strong>
+                  </div>
+
+                  <SizeGrid
+                    title="Recebido agora"
+                    sizes={allSizes}
+                    values={newOrder.rec}
+                    editable
+                    onChange={(size, value) =>
+                      setNewOrder((p) => ({
+                        ...p,
+                        rec: { ...p.rec, [size]: Number(value) || 0 },
+                      }))
+                    }
+                  />
+
+                  <div className="actions">
+                    <button className="btn btn-primary" onClick={addOrder}>
+                      {newOrder.id ? "Atualizar pedido" : "Salvar pedido"}
+                    </button>
+
+                    {newOrder.id && (
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() =>
+                          setNewOrder({
+                            id: null,
+                            date: "2026-03-17",
+                            supplier: "",
+                            note: "",
+                            ped: {},
+                            rec: {},
+                          })
+                        }
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <Card title="Pedidos lançados">
+              <div className="stack-sm">
+                {orders.map((order) => {
+                  const totalPed = sumMap(order.ped);
+                  const totalRec = sumMap(order.rec);
+                  const totalPend = Math.max(0, totalPed - totalRec);
+
+                  return (
+                    <div key={order.id} className="item-card">
+                      <div className="row-between">
+                        <div
+                          onClick={() =>
+                            setNewOrder({
+                              id: order.id,
+                              date: order.date,
+                              supplier: order.supplier,
+                              note: order.note,
+                              ped: { ...order.ped },
+                              rec: { ...order.rec },
+                            })
+                          }
+                          style={{ cursor: "pointer", flex: 1 }}
+                        >
+                          <div>
+                            <strong>{order.supplier}</strong>
+                          </div>
+                          <div className="small muted">
+                            {order.date} • {order.note || "Sem observação"}
+                          </div>
+                        </div>
+
+                        <div className="tag-row">
+                          <span className="outline-tag">Pedido {totalPed}</span>
+                          <span className="outline-tag">Recebido {totalRec}</span>
+                          <span className="outline-tag">Falta {totalPend}</span>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => deleteOrder(order.id)}
+                          >
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="tiny muted">Clique no texto para editar</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {tab === "saidas" && (
+          <div className="stack">
+            <div className="grid-form">
+              <SizeGrid
+                title="Lançar saída de produção"
+                sizes={allSizes}
+                values={newOutput.qty}
+                editable
+                onChange={(size, value) =>
+                  setNewOutput((p) => ({
+                    ...p,
+                    qty: { ...p.qty, [size]: Number(value) || 0 },
+                  }))
+                }
+              />
+
+              <Card title={newOutput.id ? "Editar saída" : "Dados da saída"}>
+                <div className="stack-sm">
+                  <InputField
+                    type="date"
+                    value={newOutput.date}
+                    onChange={(e) => setNewOutput((p) => ({ ...p, date: e.target.value }))}
+                  />
+
+                  <InputField
+                    placeholder="Observação da produção"
+                    value={newOutput.note}
+                    onChange={(e) => setNewOutput((p) => ({ ...p, note: e.target.value }))}
+                  />
+
+                  <div className="small muted">
+                    Total consumido: <strong>{sumMap(newOutput.qty)}</strong>
+                  </div>
+
+                  <div className="actions">
+                    <button className="btn btn-primary" onClick={addOutput}>
+                      {newOutput.id ? "Atualizar saída" : "Salvar saída"}
+                    </button>
+
+                    {newOutput.id && (
+                      <button
+                        className="btn btn-secondary"
+                        onClick={() =>
+                          setNewOutput({
+                            id: null,
+                            date: "2026-03-17",
+                            note: "",
+                            qty: {},
+                          })
+                        }
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <Card title="Saídas lançadas">
+              <div className="stack-sm">
+                {outputs.map((out) => (
+                  <div key={out.id} className="item-card">
+                    <div className="row-between">
+                      <div
+                        onClick={() =>
+                          setNewOutput({
+                            id: out.id,
+                            date: out.date,
+                            note: out.note,
+                            qty: { ...out.qty },
+                          })
+                        }
+                        style={{ cursor: "pointer", flex: 1 }}
+                      >
+                        <div>
+                          <strong>{out.note || "Saída sem observação"}</strong>
+                        </div>
+                        <div className="small muted">{out.date}</div>
+                      </div>
+
+                      <div className="tag-row">
+                        <div className="outline-tag">Consumido {sumMap(out.qty)}</div>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => deleteOutput(out.id)}
+                        >
+                          Excluir
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="tiny muted">Clique no texto para editar</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {tab === "config" && (
+          <Card title="Saldo inicial e mínimo">
+            <div className="table-wrap">
+              <table className="stock-table">
+                <thead>
+                  <tr>
+                    <th>Nº</th>
+                    <th>Saldo inicial</th>
+                    <th>Mínimo</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {base.map((row) => (
+                    <tr key={row.size}>
+                      <td>
+                        <strong>{row.size}</strong>
+                      </td>
+                      <td className="num">
+                        <InputField
+                          type="number"
+                          className="mini-input"
+                          value={row.initial}
+                          onChange={(e) => saveBaseRow(row.size, "initial", e.target.value)}
+                        />
+                      </td>
+                      <td className="num">
+                        <InputField
+                          type="number"
+                          className="mini-input"
+                          value={row.min}
+                          onChange={(e) => saveBaseRow(row.size, "min", e.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
 }

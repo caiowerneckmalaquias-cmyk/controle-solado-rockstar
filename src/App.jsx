@@ -17,20 +17,44 @@ const TabButton=({active,onClick,children})=><button onClick={onClick} className
 const SizeGrid=({title,sizes,values,editable=false,onChange})=><Card title={title}><div className="size-grid">{sizes.map(size=><div key={size} className="size-box"><div className="size-label">Nº {size}</div>{editable?<InputField type="number" min="0" value={values[size]??""} onChange={e=>onChange(size,e.target.value)}/>:<div className="size-value">{values[size]||0}</div>}</div>)}</div></Card>;
 
 export default function App() {
-  useEffect(() => {
-    async function testar() {
-      const { data, error } = await supabase
-        .from("orders")
-        .select("*");
+useEffect(() => {
+  async function carregarDados() {
+    const { data: ordersData, error: ordersError } = await supabase
+      .from("orders")
+      .select("*")
+      .order("id", { ascending: false });
 
-      console.log("DADOS DO BANCO:", data);
-      console.log("ERRO:", error);
+    if (!ordersError && ordersData) {
+      setOrders(ordersData);
     }
 
-    testar();
-  }, []);
+    const { data: outputsData, error: outputsError } = await supabase
+      .from("outputs")
+      .select("*")
+      .order("id", { ascending: false });
 
- const [tab,setTab]=useState("dashboard"), [base,setBase]=useState(initialBase), [orders,setOrders]=useState(initialOrders), [outputs,setOutputs]=useState(initialOutputs), [search,setSearch]=useState("");
+    if (!outputsError && outputsData) {
+      setOutputs(outputsData);
+    }
+
+    const { data: baseData, error: baseError } = await supabase
+      .from("base")
+      .select("*")
+      .order("size", { ascending: true });
+
+    if (!baseError && baseData && baseData.length > 0) {
+      setBase(baseData);
+    }
+
+    console.log("ORDERS:", ordersData);
+    console.log("OUTPUTS:", outputsData);
+    console.log("BASE:", baseData);
+  }
+
+  carregarDados();
+}, []);
+
+const [tab,setTab]=useState("dashboard"), [base,setBase]=useState(initialBase), [orders,setOrders]=useState(initialOrders), [outputs,setOutputs]=useState(initialOutputs), [search,setSearch]=useState("");
  const [newOrder,setNewOrder]=useState({id:null,date:"2026-03-17",supplier:"",note:"",ped:{},rec:{}});
  const [newOutput,setNewOutput]=useState({id:null,date:"2026-03-17",note:"",qty:{}});
  const stockRows=useMemo(()=>allSizes.map(size=>{const b=base.find(i=>i.size===size)||{initial:0,min:0}; const received=orders.reduce((a,o)=>a+(Number(o.rec?.[size])||0),0); const ordered=orders.reduce((a,o)=>a+(Number(o.ped?.[size])||0),0); const pending=Math.max(0,ordered-received); const consumed=outputs.reduce((a,o)=>a+(Number(o.qty?.[size])||0),0); const current=Number(b.initial||0)+received-consumed; const future=current+pending; const minimum=Number(b.min||0); return {size,initial:b.initial||0,minimum,received,pending,consumed,current,future,status:getStatus(current,minimum,pending)};}),[base,orders,outputs]);

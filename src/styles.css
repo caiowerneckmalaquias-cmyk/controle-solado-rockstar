@@ -67,8 +67,14 @@
 }
 
 .stock-table td:last-child {
-  display: flex;
+  text-align: center;
+}
+
+.stock-table td:last-child .status {
+  display: inline-flex;
   justify-content: center;
+  align-items: center;
+  margin: 0 auto;
 }
 
 /* AJUSTE FINO DE COLUNAS */
@@ -102,7 +108,4 @@
 .stock-table th:nth-child(6),
 .stock-table td:nth-child(6) {
   width: 16%;
-}
-.stock-table td:last-child .status {
-  margin: 0 auto;
 }

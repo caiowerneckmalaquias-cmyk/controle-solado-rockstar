@@ -1,4 +1,5 @@
-import React,{useMemo,useState} from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { supabase } from "./supabase";
 const infantSizes=Array.from({length:9},(_,i)=>25+i);
 const adultSizes=Array.from({length:11},(_,i)=>34+i);
 const allSizes=Array.from({length:20},(_,i)=>25+i);
@@ -15,7 +16,31 @@ const ProgressBar=({value,className=""})=><div className="progress-track"><div c
 const TabButton=({active,onClick,children})=><button onClick={onClick} className={`tab-button ${active?"tab-active":""}`}>{children}</button>;
 const SizeGrid=({title,sizes,values,editable=false,onChange})=><Card title={title}><div className="size-grid">{sizes.map(size=><div key={size} className="size-box"><div className="size-label">Nº {size}</div>{editable?<InputField type="number" min="0" value={values[size]??""} onChange={e=>onChange(size,e.target.value)}/>:<div className="size-value">{values[size]||0}</div>}</div>)}</div></Card>;
 
-export default function App(){
+export default function App() {
+  useEffect(() => {
+    async function testar() {
+      const { data, error } = await supabase
+        .from("orders")
+        .select("*");
+
+      console.log("DADOS DO BANCO:", data);
+      console.log("ERRO:", error);
+    }
+
+    testar();
+  }, []);
+{useEffect(() => {
+  async function testar() {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*");
+
+    console.log("DADOS DO BANCO:", data);
+    console.log("ERRO:", error);
+  }
+
+  testar();
+}, []);
  const [tab,setTab]=useState("dashboard"), [base,setBase]=useState(initialBase), [orders,setOrders]=useState(initialOrders), [outputs,setOutputs]=useState(initialOutputs), [search,setSearch]=useState("");
  const [newOrder,setNewOrder]=useState({id:null,date:"2026-03-17",supplier:"",note:"",ped:{},rec:{}});
  const [newOutput,setNewOutput]=useState({id:null,date:"2026-03-17",note:"",qty:{}});

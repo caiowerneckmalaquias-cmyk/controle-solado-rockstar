@@ -334,46 +334,22 @@ export default function App() {
     });
   };
 
-  const saveBaseRow = async (size, field, value) => {
-    const numericValue = Number(value) || 0;
-
-    setBase((prev) =>
-      prev.map((item) =>
-        item.size === size ? { ...item, [field]: numericValue } : item
-      )
-    );
-
-    const currentRow = base.find((item) => item.size === size);
-
-    if (currentRow) {
-      const updatedRow = {
-        size,
-        initial: field === "initial" ? numericValue : currentRow.initial,
-        min: field === "min" ? numericValue : currentRow.min,
-      };
-
-      const { data: existing } = await supabase
+  const saveBase = async () => {
+    try {
+      const { error } = await supabase
         .from("base")
-        .select("*")
-        .eq("size", size)
-        .maybeSingle();
+        .upsert(base, { onConflict: "size" });
 
-      if (existing) {
-        const { error } = await supabase
-          .from("base")
-          .update(updatedRow)
-          .eq("size", size);
-
-        if (error) {
-          console.log("ERRO AO ATUALIZAR BASE:", error);
-        }
-      } else {
-        const { error } = await supabase.from("base").insert([updatedRow]);
-
-        if (error) {
-          console.log("ERRO AO INSERIR BASE:", error);
-        }
+      if (error) {
+        console.log("ERRO AO SALVAR CONFIGURAÇÃO:", error);
+        alert("Erro ao salvar configuração.");
+        return;
       }
+
+      alert("Configuração salva com sucesso!");
+    } catch (err) {
+      console.log("ERRO GERAL AO SALVAR CONFIGURAÇÃO:", err);
+      alert("Erro ao salvar configuração.");
     }
   };
 
@@ -918,7 +894,15 @@ export default function App() {
                           type="number"
                           className="mini-input"
                           value={row.initial}
-                          onChange={(e) => saveBaseRow(row.size, "initial", e.target.value)}
+                          onChange={(e) =>
+                            setBase((prev) =>
+                              prev.map((item) =>
+                                item.size === row.size
+                                  ? { ...item, initial: Number(e.target.value) || 0 }
+                                  : item
+                              )
+                            )
+                          }
                         />
                       </td>
                       <td className="num">
@@ -926,13 +910,27 @@ export default function App() {
                           type="number"
                           className="mini-input"
                           value={row.min}
-                          onChange={(e) => saveBaseRow(row.size, "min", e.target.value)}
+                          onChange={(e) =>
+                            setBase((prev) =>
+                              prev.map((item) =>
+                                item.size === row.size
+                                  ? { ...item, min: Number(e.target.value) || 0 }
+                                  : item
+                              )
+                            )
+                          }
                         />
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            <div className="actions" style={{ marginTop: "16px" }}>
+              <button className="btn btn-primary" onClick={saveBase}>
+                Salvar configuração
+              </button>
             </div>
           </Card>
         )}

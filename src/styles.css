@@ -37,9 +37,37 @@
   border-radius: 8px;
 }
 
-/* TABELA CENTRALIZADA */
+.stock-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
 .stock-table th,
 .stock-table td {
+  padding: 16px 0;
+  border-bottom: 1px solid #eef2f7;
   text-align: center;
   vertical-align: middle;
+}
+
+.stock-table th {
+  color: var(--muted);
+  font-weight: 700;
+}
+
+/* força tudo centralizado */
+.stock-table .num {
+  text-align: center;
+}
+
+/* primeira coluna (Nº) mais forte */
+.stock-table td:first-child {
+  font-weight: 700;
+}
+
+/* status perfeitamente centralizado */
+.stock-table td:last-child {
+  display: flex;
+  justify-content: center;
 }

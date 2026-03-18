@@ -17,6 +17,21 @@ const initialBase = allSizes.map((size) => ({
 const sumMap = (m = {}) =>
   Object.values(m).reduce((a, v) => a + (Number(v) || 0), 0);
 
+const filterPositiveMap = (m = {}) =>
+  Object.fromEntries(
+    Object.entries(m).filter(([, v]) => Number(v) > 0)
+  );
+
+const formatQtyMap = (m = {}) => {
+  const entries = Object.entries(m).filter(([, v]) => Number(v) > 0);
+  if (!entries.length) return "—";
+
+  return entries
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([size, qty]) => `${size}: ${qty}`)
+    .join(" • ");
+};
+
 const getStatus = (current, minimum, pending) =>
   current < minimum ? (pending > 0 ? "Em pedido" : "Comprar") : "OK";
 
@@ -26,6 +41,30 @@ const statusClasses = (status) =>
     : status === "Em pedido"
     ? "status status-yellow"
     : "status status-green";
+
+const emptyOrder = () => ({
+  id: null,
+  date: getToday(),
+  supplier: "",
+  note: "",
+  ped: {},
+});
+
+const emptyEntry = () => ({
+  id: null,
+  date: getToday(),
+  supplier: "",
+  note: "",
+  qty: {},
+  order_id: "",
+});
+
+const emptyOutput = () => ({
+  id: null,
+  date: getToday(),
+  note: "",
+  qty: {},
+});
 
 const Card = ({ title, children, right }) => (
   <div className="card">
@@ -49,6 +88,10 @@ const MetricCard = ({ title, value, hint, className = "" }) => (
 
 const InputField = (props) => (
   <input {...props} className={`input ${props.className || ""}`} />
+);
+
+const SelectField = (props) => (
+  <select {...props} className={`input ${props.className || ""}`} />
 );
 
 const ProgressBar = ({ value, className = "" }) => (
@@ -88,89 +131,56 @@ const SizeGrid = ({ title, sizes, values, editable = false, onChange }) => (
   </Card>
 );
 
-const emptyOrder = () => ({
-  id: null,
-  date: getToday(),
-  supplier: "",
-  note: "",
-  ped: {},
-  rec: {},
-});
-
-const emptyOutput = () => ({
-  id: null,
-  date: getToday(),
-  note: "",
-  qty: {},
-});
-
-const mapPositiveValues = (obj = {}) =>
-  Object.fromEntries(
-    Object.entries(obj).filter(([, value]) => Number(value) > 0)
-  );
-
-const formatQtyMap = (obj = {}) => {
-  const entries = Object.entries(obj).filter(([, v]) => Number(v) > 0);
-  if (!entries.length) return "—";
-  return entries
-    .sort((a, b) => Number(a[0]) - Number(b[0]))
-    .map(([size, qty]) => `${size}: ${qty}`)
-    .join(" • ");
-};
-
 export default function App() {
   const [tab, setTab] = useState("dashboard");
-  const [base, setBase] = useState(initialBase);
-  const [orders, setOrders] = useState([]);
-  const [outputs, setOutputs] = useState([]);
-  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState(null);
 
+  const [base, setBase] = useState(initialBase);
+  const [orders, setOrders] = useState([]);
+  const [entries, setEntries] = useState([]);
+  const [outputs, setOutputs] = useState([]);
+
+  const [search, setSearch] = useState("");
+
   const [newOrder, setNewOrder] = useState(emptyOrder());
+  const [newEntry, setNewEntry] = useState(emptyEntry());
   const [newOutput, setNewOutput] = useState(emptyOutput());
 
   const showBanner = (type, text) => {
     setBanner({ type, text });
-    setTimeout(() => {
-      setBanner(null);
-    }, 3500);
+    setTimeout(() => setBanner(null), 3000);
   };
 
   useEffect(() => {
     async function carregarDados() {
       setLoading(true);
 
-      const { data: ordersData, error: ordersError } = await supabase
-        .from("orders")
-        .select("*")
-        .order("id", { ascending: false });
+      const [
+        { data: ordersData, error: ordersError },
+        { data: entriesData, error: entriesError },
+        { data: outputsData, error: outputsError },
+        { data: baseData, error: baseError },
+      ] = await Promise.all([
+        supabase.from("orders").select("*").order("id", { ascending: false }),
+        supabase.from("entries").select("*").order("id", { ascending: false }),
+        supabase.from("outputs").select("*").order("id", { ascending: false }),
+        supabase.from("base").select("*").order("size", { ascending: true }),
+      ]);
 
-      const { data: outputsData, error: outputsError } = await supabase
-        .from("outputs")
-        .select("*")
-        .order("id", { ascending: false });
+      if (!ordersError && ordersData) setOrders(ordersData);
+      if (!entriesError && entriesData) setEntries(entriesData);
+      if (!outputsError && outputsData) setOutputs(outputsData);
+      if (!baseError && baseData && baseData.length > 0) setBase(baseData);
 
-      const { data: baseData, error: baseError } = await supabase
-        .from("base")
-        .select("*")
-        .order("size", { ascending: true });
-
-      if (!ordersError && ordersData) {
-        setOrders(ordersData);
-      }
-
-      if (!outputsError && outputsData) {
-        setOutputs(outputsData);
-      }
-
-      if (!baseError && baseData && baseData.length > 0) {
-        setBase(baseData);
-      }
-
-      if (ordersError || outputsError || baseError) {
+      if (ordersError || entriesError || outputsError || baseError) {
+        console.log("ERRO AO CARREGAR:", {
+          ordersError,
+          entriesError,
+          outputsError,
+          baseError,
+        });
         showBanner("error", "Alguns dados não puderam ser carregados.");
-        console.log("ERROS AO CARREGAR:", { ordersError, outputsError, baseError });
       }
 
       setLoading(false);
@@ -179,23 +189,36 @@ export default function App() {
     carregarDados();
   }, []);
 
+  const entriesLinkedToOrders = useMemo(
+    () => entries.filter((entry) => entry.order_id !== null && entry.order_id !== undefined),
+    [entries]
+  );
+
   const stockRows = useMemo(() => {
     return allSizes.map((size) => {
       const b = base.find((i) => i.size === size) || { initial: 0, min: 0 };
 
-      const received = orders.reduce((acc, order) => {
-        return acc + (Number(order.rec?.[size]) || 0);
-      }, 0);
+      const received = entries.reduce(
+        (a, e) => a + (Number(e.qty?.[size]) || 0),
+        0
+      );
 
-      const ordered = orders.reduce((acc, order) => {
-        return acc + (Number(order.ped?.[size]) || 0);
-      }, 0);
+      const ordered = orders.reduce(
+        (a, o) => a + (Number(o.ped?.[size]) || 0),
+        0
+      );
 
-      const pending = Math.max(0, ordered - received);
+      const receivedFromOrders = entriesLinkedToOrders.reduce(
+        (a, e) => a + (Number(e.qty?.[size]) || 0),
+        0
+      );
 
-      const consumed = outputs.reduce((acc, output) => {
-        return acc + (Number(output.qty?.[size]) || 0);
-      }, 0);
+      const pending = Math.max(0, ordered - receivedFromOrders);
+
+      const consumed = outputs.reduce(
+        (a, o) => a + (Number(o.qty?.[size]) || 0),
+        0
+      );
 
       const current = Number(b.initial || 0) + received - consumed;
       const future = current + pending;
@@ -214,10 +237,9 @@ export default function App() {
         future,
         status,
         isCritical: current < minimum,
-        gap: Math.max(0, minimum - current),
       };
     });
-  }, [base, orders, outputs]);
+  }, [base, orders, entries, entriesLinkedToOrders, outputs]);
 
   const filteredRows = useMemo(() => {
     if (!search.trim()) return stockRows;
@@ -230,6 +252,7 @@ export default function App() {
       pending: stockRows.reduce((a, b) => a + b.pending, 0),
       future: stockRows.reduce((a, b) => a + b.future, 0),
       consumed: stockRows.reduce((a, b) => a + b.consumed, 0),
+      received: stockRows.reduce((a, b) => a + b.received, 0),
       belowMin: stockRows.filter((r) => r.current < r.minimum).length,
     }),
     [stockRows]
@@ -248,36 +271,47 @@ export default function App() {
       }));
   }, [stockRows]);
 
-  const movementHistory = useMemo(() => {
-    const orderMovements = orders.flatMap((order) => {
-      const list = [];
+  const orderStats = useMemo(() => {
+    const stats = {};
 
-      if (sumMap(order.ped) > 0) {
-        list.push({
-          id: `order-ped-${order.id}`,
-          date: order.date,
-          type: "Pedido",
-          source: order.supplier || "Sem fornecedor",
-          note: order.note || "Sem observação",
-          total: sumMap(order.ped),
-          detail: formatQtyMap(order.ped),
-        });
-      }
+    orders.forEach((order) => {
+      const linkedEntries = entries.filter((entry) => Number(entry.order_id) === Number(order.id));
 
-      if (sumMap(order.rec) > 0) {
-        list.push({
-          id: `order-rec-${order.id}`,
-          date: order.date,
-          type: "Recebimento",
-          source: order.supplier || "Sem fornecedor",
-          note: order.note || "Sem observação",
-          total: sumMap(order.rec),
-          detail: formatQtyMap(order.rec),
-        });
-      }
+      const totalOrdered = sumMap(order.ped);
+      const totalReceived = linkedEntries.reduce((acc, entry) => acc + sumMap(entry.qty), 0);
+      const totalPending = Math.max(0, totalOrdered - totalReceived);
 
-      return list;
+      stats[order.id] = {
+        totalOrdered,
+        totalReceived,
+        totalPending,
+        progress: totalOrdered ? (totalReceived / totalOrdered) * 100 : 0,
+      };
     });
+
+    return stats;
+  }, [orders, entries]);
+
+  const movementHistory = useMemo(() => {
+    const orderMovements = orders.map((order) => ({
+      id: `order-${order.id}`,
+      date: order.date,
+      type: "Pedido",
+      source: order.supplier || "Sem fornecedor",
+      note: order.note || "Sem observação",
+      total: sumMap(order.ped),
+      detail: formatQtyMap(order.ped),
+    }));
+
+    const entryMovements = entries.map((entry) => ({
+      id: `entry-${entry.id}`,
+      date: entry.date,
+      type: "Entrada",
+      source: entry.supplier || "Sem fornecedor",
+      note: entry.note || "Sem observação",
+      total: sumMap(entry.qty),
+      detail: formatQtyMap(entry.qty),
+    }));
 
     const outputMovements = outputs.map((output) => ({
       id: `output-${output.id}`,
@@ -289,11 +323,11 @@ export default function App() {
       detail: formatQtyMap(output.qty),
     }));
 
-    return [...orderMovements, ...outputMovements].sort((a, b) => {
+    return [...orderMovements, ...entryMovements, ...outputMovements].sort((a, b) => {
       if (a.date === b.date) return a.type.localeCompare(b.type);
       return b.date.localeCompare(a.date);
     });
-  }, [orders, outputs]);
+  }, [orders, entries, outputs]);
 
   const addOrder = async () => {
     if (!newOrder.supplier.trim()) {
@@ -301,8 +335,8 @@ export default function App() {
       return;
     }
 
-    if (sumMap(newOrder.ped) === 0 && sumMap(newOrder.rec) === 0) {
-      showBanner("error", "Preencha ao menos uma quantidade no pedido.");
+    if (sumMap(newOrder.ped) === 0) {
+      showBanner("error", "Informe alguma quantidade no pedido.");
       return;
     }
 
@@ -310,8 +344,7 @@ export default function App() {
       date: newOrder.date,
       supplier: newOrder.supplier.trim(),
       note: newOrder.note.trim(),
-      ped: mapPositiveValues(newOrder.ped),
-      rec: mapPositiveValues(newOrder.rec),
+      ped: filterPositiveMap(newOrder.ped),
     };
 
     if (newOrder.id) {
@@ -322,32 +355,70 @@ export default function App() {
         .select();
 
       if (!error && data) {
-        setOrders((prev) =>
-          prev.map((order) => (order.id === newOrder.id ? data[0] : order))
-        );
+        setOrders((prev) => prev.map((o) => (o.id === newOrder.id ? data[0] : o)));
+        setNewOrder(emptyOrder());
         showBanner("success", "Pedido atualizado com sucesso.");
       } else {
         console.log("ERRO AO ATUALIZAR PEDIDO:", error);
         showBanner("error", "Erro ao atualizar pedido.");
-        return;
       }
+      return;
+    }
+
+    const { data, error } = await supabase.from("orders").insert([cleaned]).select();
+
+    if (!error && data) {
+      setOrders((prev) => [data[0], ...prev]);
+      setNewOrder(emptyOrder());
+      showBanner("success", "Pedido salvo com sucesso.");
     } else {
+      console.log("ERRO AO SALVAR PEDIDO:", error);
+      showBanner("error", "Erro ao salvar pedido.");
+    }
+  };
+
+  const addEntry = async () => {
+    if (sumMap(newEntry.qty) === 0) {
+      showBanner("error", "Informe alguma quantidade na entrada.");
+      return;
+    }
+
+    const cleaned = {
+      date: newEntry.date,
+      supplier: newEntry.supplier.trim(),
+      note: newEntry.note.trim(),
+      qty: filterPositiveMap(newEntry.qty),
+      order_id: newEntry.order_id ? Number(newEntry.order_id) : null,
+    };
+
+    if (newEntry.id) {
       const { data, error } = await supabase
-        .from("orders")
-        .insert([cleaned])
+        .from("entries")
+        .update(cleaned)
+        .eq("id", newEntry.id)
         .select();
 
       if (!error && data) {
-        setOrders((prev) => [data[0], ...prev]);
-        showBanner("success", "Pedido salvo com sucesso.");
+        setEntries((prev) => prev.map((e) => (e.id === newEntry.id ? data[0] : e)));
+        setNewEntry(emptyEntry());
+        showBanner("success", "Entrada atualizada com sucesso.");
       } else {
-        console.log("ERRO AO SALVAR PEDIDO:", error);
-        showBanner("error", "Erro ao salvar pedido.");
-        return;
+        console.log("ERRO AO ATUALIZAR ENTRADA:", error);
+        showBanner("error", "Erro ao atualizar entrada.");
       }
+      return;
     }
 
-    setNewOrder(emptyOrder());
+    const { data, error } = await supabase.from("entries").insert([cleaned]).select();
+
+    if (!error && data) {
+      setEntries((prev) => [data[0], ...prev]);
+      setNewEntry(emptyEntry());
+      showBanner("success", "Entrada salva com sucesso.");
+    } else {
+      console.log("ERRO AO SALVAR ENTRADA:", error);
+      showBanner("error", "Erro ao salvar entrada.");
+    }
   };
 
   const addOutput = async () => {
@@ -359,7 +430,7 @@ export default function App() {
     const cleaned = {
       date: newOutput.date,
       note: newOutput.note.trim(),
-      qty: mapPositiveValues(newOutput.qty),
+      qty: filterPositiveMap(newOutput.qty),
     };
 
     if (newOutput.id) {
@@ -370,32 +441,26 @@ export default function App() {
         .select();
 
       if (!error && data) {
-        setOutputs((prev) =>
-          prev.map((output) => (output.id === newOutput.id ? data[0] : output))
-        );
+        setOutputs((prev) => prev.map((o) => (o.id === newOutput.id ? data[0] : o)));
+        setNewOutput(emptyOutput());
         showBanner("success", "Saída atualizada com sucesso.");
       } else {
         console.log("ERRO AO ATUALIZAR SAÍDA:", error);
         showBanner("error", "Erro ao atualizar saída.");
-        return;
       }
-    } else {
-      const { data, error } = await supabase
-        .from("outputs")
-        .insert([cleaned])
-        .select();
-
-      if (!error && data) {
-        setOutputs((prev) => [data[0], ...prev]);
-        showBanner("success", "Saída salva com sucesso.");
-      } else {
-        console.log("ERRO AO SALVAR SAÍDA:", error);
-        showBanner("error", "Erro ao salvar saída.");
-        return;
-      }
+      return;
     }
 
-    setNewOutput(emptyOutput());
+    const { data, error } = await supabase.from("outputs").insert([cleaned]).select();
+
+    if (!error && data) {
+      setOutputs((prev) => [data[0], ...prev]);
+      setNewOutput(emptyOutput());
+      showBanner("success", "Saída salva com sucesso.");
+    } else {
+      console.log("ERRO AO SALVAR SAÍDA:", error);
+      showBanner("error", "Erro ao salvar saída.");
+    }
   };
 
   const saveBase = async () => {
@@ -425,15 +490,27 @@ export default function App() {
 
     if (!error) {
       setOrders((prev) => prev.filter((order) => order.id !== id));
-
-      if (newOrder.id === id) {
-        setNewOrder(emptyOrder());
-      }
-
+      if (newOrder.id === id) setNewOrder(emptyOrder());
       showBanner("success", "Pedido excluído com sucesso.");
     } else {
       console.log("ERRO AO EXCLUIR PEDIDO:", error);
       showBanner("error", "Erro ao excluir pedido.");
+    }
+  };
+
+  const deleteEntry = async (id) => {
+    const confirmed = window.confirm("Deseja excluir esta entrada?");
+    if (!confirmed) return;
+
+    const { error } = await supabase.from("entries").delete().eq("id", id);
+
+    if (!error) {
+      setEntries((prev) => prev.filter((entry) => entry.id !== id));
+      if (newEntry.id === id) setNewEntry(emptyEntry());
+      showBanner("success", "Entrada excluída com sucesso.");
+    } else {
+      console.log("ERRO AO EXCLUIR ENTRADA:", error);
+      showBanner("error", "Erro ao excluir entrada.");
     }
   };
 
@@ -445,11 +522,7 @@ export default function App() {
 
     if (!error) {
       setOutputs((prev) => prev.filter((output) => output.id !== id));
-
-      if (newOutput.id === id) {
-        setNewOutput(emptyOutput());
-      }
-
+      if (newOutput.id === id) setNewOutput(emptyOutput());
       showBanner("success", "Saída excluída com sucesso.");
     } else {
       console.log("ERRO AO EXCLUIR SAÍDA:", error);
@@ -457,12 +530,13 @@ export default function App() {
     }
   };
 
-  const table = (rows) => (
+  const stockTable = (rows) => (
     <div className="table-wrap">
       <table className="stock-table">
         <thead>
           <tr>
             <th>Nº</th>
+            <th>Entradas</th>
             <th>Em pedido</th>
             <th>Atual</th>
             <th>Futuro</th>
@@ -476,6 +550,7 @@ export default function App() {
               <td>
                 <strong>{r.size}</strong>
               </td>
+              <td className="num">{r.received}</td>
               <td className="num">{r.pending}</td>
               <td className="num">{r.current}</td>
               <td className="num">
@@ -496,11 +571,9 @@ export default function App() {
     return (
       <div className="page">
         <div className="container">
-          <div className="card">
-            <div className="card-body">
-              <div className="notice-info">Carregando dados do estoque...</div>
-            </div>
-          </div>
+          <Card>
+            <div className="notice-info">Carregando dados do estoque...</div>
+          </Card>
         </div>
       </div>
     );
@@ -525,9 +598,7 @@ export default function App() {
 
         {banner && (
           <div
-            className={
-              banner.type === "success" ? "notice-success" : "notice-error"
-            }
+            className={banner.type === "success" ? "notice-success" : "notice-error"}
             style={{ marginBottom: "16px" }}
           >
             {banner.text}
@@ -538,19 +609,19 @@ export default function App() {
           <MetricCard
             title="Estoque atual"
             value={totals.current}
-            hint="O que já está disponível"
+            hint="Base + entradas - saídas"
             className="metric-green"
+          />
+          <MetricCard
+            title="Entradas"
+            value={totals.received}
+            hint="Tudo que já entrou"
+            className="metric-yellow"
           />
           <MetricCard
             title="Em pedido"
             value={totals.pending}
             hint="O que ainda falta chegar"
-            className="metric-yellow"
-          />
-          <MetricCard
-            title="Estoque futuro"
-            value={totals.future}
-            hint="Atual + em pedido"
             className="metric-blue"
           />
           <MetricCard
@@ -576,6 +647,9 @@ export default function App() {
           </TabButton>
           <TabButton active={tab === "pedidos"} onClick={() => setTab("pedidos")}>
             Pedidos
+          </TabButton>
+          <TabButton active={tab === "entradas"} onClick={() => setTab("entradas")}>
+            Entradas
           </TabButton>
           <TabButton active={tab === "saidas"} onClick={() => setTab("saidas")}>
             Saídas
@@ -709,7 +783,7 @@ export default function App() {
               </Card>
             </div>
 
-            <Card title="Resumo por numeração">{table(stockRows)}</Card>
+            <Card title="Resumo por numeração">{stockTable(stockRows)}</Card>
           </div>
         )}
 
@@ -722,7 +796,7 @@ export default function App() {
                 onChange={(e) => setSearch(e.target.value)}
               />
             </Card>
-            <Card title="Controle completo">{table(filteredRows)}</Card>
+            <Card title="Controle completo">{stockTable(filteredRows)}</Card>
           </div>
         )}
 
@@ -765,25 +839,7 @@ export default function App() {
                   />
 
                   <div className="small muted">
-                    Total pedido:{" "}
-                    <strong style={{ color: "#0f172a" }}>{sumMap(newOrder.ped)}</strong>
-                  </div>
-
-                  <SizeGrid
-                    title="Recebido"
-                    sizes={allSizes}
-                    values={newOrder.rec}
-                    editable
-                    onChange={(size, value) =>
-                      setNewOrder((prev) => ({
-                        ...prev,
-                        rec: { ...prev.rec, [size]: Number(value) || 0 },
-                      }))
-                    }
-                  />
-
-                  <div className="small muted">
-                    Total recebido: <strong>{sumMap(newOrder.rec)}</strong>
+                    Total pedido: <strong style={{ color: "#0f172a" }}>{sumMap(newOrder.ped)}</strong>
                   </div>
 
                   <div className="actions">
@@ -792,10 +848,7 @@ export default function App() {
                     </button>
 
                     {newOrder.id && (
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setNewOrder(emptyOrder())}
-                      >
+                      <button className="btn btn-secondary" onClick={() => setNewOrder(emptyOrder())}>
                         Cancelar
                       </button>
                     )}
@@ -810,10 +863,12 @@ export default function App() {
                   <div className="notice-info">Nenhum pedido lançado ainda.</div>
                 ) : (
                   orders.map((order) => {
-                    const totalPed = sumMap(order.ped);
-                    const totalRec = sumMap(order.rec);
-                    const totalPend = Math.max(0, totalPed - totalRec);
-                    const progress = totalPed ? (totalRec / totalPed) * 100 : 0;
+                    const stats = orderStats[order.id] || {
+                      totalOrdered: 0,
+                      totalReceived: 0,
+                      totalPending: 0,
+                      progress: 0,
+                    };
 
                     return (
                       <div key={order.id} className="item-card">
@@ -826,7 +881,6 @@ export default function App() {
                                 supplier: order.supplier || "",
                                 note: order.note || "",
                                 ped: { ...(order.ped || {}) },
-                                rec: { ...(order.rec || {}) },
                               })
                             }
                             style={{ cursor: "pointer", flex: 1 }}
@@ -840,28 +894,147 @@ export default function App() {
                           </div>
 
                           <div className="tag-row">
-                            <span className="outline-tag">Pedido {totalPed}</span>
-                            <span className="outline-tag">Recebido {totalRec}</span>
-                            <span className="outline-tag">Falta {totalPend}</span>
-                            <button
-                              className="btn btn-secondary"
-                              onClick={() => deleteOrder(order.id)}
-                            >
+                            <span className="outline-tag">Pedido {stats.totalOrdered}</span>
+                            <span className="outline-tag">Recebido {stats.totalReceived}</span>
+                            <span className="outline-tag">Falta {stats.totalPending}</span>
+                            <button className="btn btn-secondary" onClick={() => deleteOrder(order.id)}>
                               Excluir
                             </button>
                           </div>
                         </div>
 
                         <div style={{ marginTop: "10px" }}>
-                          <ProgressBar value={progress} className="bar-blue" />
+                          <ProgressBar value={stats.progress} className="bar-blue" />
                         </div>
 
                         <div className="tiny muted" style={{ marginTop: "8px" }}>
-                          Clique no texto para editar
+                          {formatQtyMap(order.ped)} • Clique no texto para editar
                         </div>
                       </div>
                     );
                   })
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {tab === "entradas" && (
+          <div className="stack">
+            <div className="grid-form">
+              <SizeGrid
+                title="Lançar entrada"
+                sizes={allSizes}
+                values={newEntry.qty}
+                editable
+                onChange={(size, value) =>
+                  setNewEntry((prev) => ({
+                    ...prev,
+                    qty: { ...prev.qty, [size]: Number(value) || 0 },
+                  }))
+                }
+              />
+
+              <Card title={newEntry.id ? "Editar entrada" : "Dados da entrada"}>
+                <div className="stack-sm">
+                  <InputField
+                    type="date"
+                    value={newEntry.date}
+                    onChange={(e) => setNewEntry((prev) => ({ ...prev, date: e.target.value }))}
+                  />
+
+                  <InputField
+                    placeholder="Fornecedor"
+                    value={newEntry.supplier}
+                    onChange={(e) =>
+                      setNewEntry((prev) => ({ ...prev, supplier: e.target.value }))
+                    }
+                  />
+
+                  <InputField
+                    placeholder="Observação"
+                    value={newEntry.note}
+                    onChange={(e) => setNewEntry((prev) => ({ ...prev, note: e.target.value }))}
+                  />
+
+                  <SelectField
+                    value={newEntry.order_id}
+                    onChange={(e) =>
+                      setNewEntry((prev) => ({ ...prev, order_id: e.target.value }))
+                    }
+                  >
+                    <option value="">Sem vínculo com pedido</option>
+                    {orders.map((order) => (
+                      <option key={order.id} value={order.id}>
+                        Pedido #{order.id} • {order.supplier}
+                      </option>
+                    ))}
+                  </SelectField>
+
+                  <div className="small muted">
+                    Total entrada: <strong>{sumMap(newEntry.qty)}</strong>
+                  </div>
+
+                  <div className="actions">
+                    <button className="btn btn-primary" onClick={addEntry}>
+                      {newEntry.id ? "Atualizar entrada" : "Salvar entrada"}
+                    </button>
+
+                    {newEntry.id && (
+                      <button className="btn btn-secondary" onClick={() => setNewEntry(emptyEntry())}>
+                        Cancelar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            <Card title="Entradas lançadas">
+              <div className="stack-sm">
+                {entries.length === 0 ? (
+                  <div className="notice-info">Nenhuma entrada lançada ainda.</div>
+                ) : (
+                  entries.map((entry) => (
+                    <div key={entry.id} className="item-card">
+                      <div className="row-between">
+                        <div
+                          onClick={() =>
+                            setNewEntry({
+                              id: entry.id,
+                              date: entry.date,
+                              supplier: entry.supplier || "",
+                              note: entry.note || "",
+                              qty: { ...(entry.qty || {}) },
+                              order_id: entry.order_id ? String(entry.order_id) : "",
+                            })
+                          }
+                          style={{ cursor: "pointer", flex: 1 }}
+                        >
+                          <div>
+                            <strong>{entry.supplier || "Sem fornecedor"}</strong>
+                          </div>
+                          <div className="small muted">
+                            {entry.date} • {entry.note || "Sem observação"}
+                          </div>
+                          <div className="tiny muted" style={{ marginTop: "6px" }}>
+                            {entry.order_id ? `Vinculado ao pedido #${entry.order_id}` : "Sem pedido vinculado"}
+                          </div>
+                        </div>
+
+                        <div className="tag-row">
+                          <div className="outline-tag">Entrada {sumMap(entry.qty)}</div>
+                          <button className="btn btn-secondary" onClick={() => deleteEntry(entry.id)}>
+                            Excluir
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="tiny muted" style={{ marginTop: "8px" }}>
+                        {formatQtyMap(entry.qty)} • Clique no texto para editar
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </Card>
@@ -908,10 +1081,7 @@ export default function App() {
                     </button>
 
                     {newOutput.id && (
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setNewOutput(emptyOutput())}
-                      >
+                      <button className="btn btn-secondary" onClick={() => setNewOutput(emptyOutput())}>
                         Cancelar
                       </button>
                     )}
@@ -947,16 +1117,15 @@ export default function App() {
 
                         <div className="tag-row">
                           <div className="outline-tag">Consumido {sumMap(out.qty)}</div>
-                          <button
-                            className="btn btn-secondary"
-                            onClick={() => deleteOutput(out.id)}
-                          >
+                          <button className="btn btn-secondary" onClick={() => deleteOutput(out.id)}>
                             Excluir
                           </button>
                         </div>
                       </div>
 
-                      <div className="tiny muted">Clique no texto para editar</div>
+                      <div className="tiny muted" style={{ marginTop: "8px" }}>
+                        {formatQtyMap(out.qty)} • Clique no texto para editar
+                      </div>
                     </div>
                   ))
                 )}

@@ -99,7 +99,44 @@ const addOrder = async () => {
 
   setNewOrder({ id:null, date:"2026-03-17", supplier:"", note:"", ped:{}, rec:{} });
 };
- const addOutput=()=>{if(!newOutput.note.trim()&&sumMap(newOutput.qty)===0)return; const cleaned={...newOutput,qty:Object.fromEntries(Object.entries(newOutput.qty).filter(([,v])=>Number(v)>0))}; if(newOutput.id){setOutputs(prev=>prev.map(o=>o.id===newOutput.id?cleaned:o));} else {setOutputs(prev=>[{...cleaned,id:Date.now()},...prev]);} setNewOutput({id:null,date:"2026-03-17",note:"",qty:{}});};
+ const addOutput = async () => {
+  if (!newOutput.note.trim() && sumMap(newOutput.qty) === 0) return;
+
+  const cleaned = {
+    date: newOutput.date,
+    note: newOutput.note,
+    qty: Object.fromEntries(
+      Object.entries(newOutput.qty).filter(([, v]) => Number(v) > 0)
+    )
+  };
+
+  if (newOutput.id) {
+    const { data, error } = await supabase
+      .from("outputs")
+      .update(cleaned)
+      .eq("id", newOutput.id)
+      .select();
+
+    if (!error && data) {
+      setOutputs(prev => prev.map(o => o.id === newOutput.id ? data[0] : o));
+    } else {
+      console.log("ERRO AO ATUALIZAR SAÍDA:", error);
+    }
+  } else {
+    const { data, error } = await supabase
+      .from("outputs")
+      .insert([cleaned])
+      .select();
+
+    if (!error && data) {
+      setOutputs(prev => [data[0], ...prev]);
+    } else {
+      console.log("ERRO AO SALVAR SAÍDA:", error);
+    }
+  }
+
+  setNewOutput({ id: null, date: "2026-03-17", note: "", qty: {} });
+};
  const table=(rows)=><div className="table-wrap"><table className="stock-table"><thead><tr><th>Nº</th><th>Em pedido</th><th>Atual</th><th>Futuro</th><th>Mínimo</th><th>Status</th></tr></thead><tbody>{rows.map(r=><tr key={r.size}><td><strong>{r.size}</strong></td><td className="num">{r.pending}</td><td className="num">{r.current}</td><td className="num"><strong>{r.future}</strong></td><td className="num">{r.minimum}</td><td className="num"><span className={statusClasses(r.status)}>{r.status}</span></td></tr>)}</tbody></table></div>;
  return <div className="page"><div className="container">
  <header className="hero"><div><p className="eyebrow">Calçados Rock Star</p><div className="hero-brand"><img src="/logo-rockstar.png" alt="Rock Star" className="hero-logo"/><div><h1>CONTROLE DE SOLADO</h1><p className="subtle">App instalável no celular • branco, vermelho e azul</p></div></div></div><div className="pill">Infantil 25–33 • Adulto 34–44</div></header>

@@ -109,3 +109,28 @@
 .stock-table td:nth-child(6) {
   width: 16%;
 }
+.notice-error {
+  background: #fee2e2;
+  color: #991b1b;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #fecaca;
+  font-weight: 600;
+}
+
+.notice-info {
+  background: #e0f2fe;
+  color: #075985;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid #bae6fd;
+  font-weight: 600;
+}
+
+.row-critical {
+  background: #fff7ed;
+}
+
+.row-critical td {
+  border-color: #fed7aa;
+}

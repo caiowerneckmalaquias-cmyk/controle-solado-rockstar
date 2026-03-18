@@ -5,46 +5,14 @@ const infantSizes = Array.from({ length: 9 }, (_, i) => 25 + i);
 const adultSizes = Array.from({ length: 11 }, (_, i) => 34 + i);
 const allSizes = Array.from({ length: 20 }, (_, i) => 25 + i);
 
+const getToday = () => new Date().toISOString().slice(0, 10);
+
 const initialBase = allSizes.map((size) => ({
   size,
   initial:
     size <= 33 ? Math.max(4, 18 - (33 - size)) : Math.max(6, 22 - (44 - size)),
   min: size <= 33 ? 8 : 12,
 }));
-
-const initialOrders = [
-  {
-    id: 1,
-    date: "2026-03-15",
-    supplier: "Solados Minas",
-    note: "Reposição semanal",
-    ped: { 34: 20, 35: 30, 36: 25, 37: 20, 38: 15 },
-    rec: { 34: 10, 35: 10, 36: 0, 37: 0, 38: 0 },
-  },
-  {
-    id: 2,
-    date: "2026-03-16",
-    supplier: "Couro Forte",
-    note: "Linha infantil",
-    ped: { 27: 15, 28: 20, 29: 20, 30: 18, 31: 10 },
-    rec: { 27: 15, 28: 10, 29: 0, 30: 0, 31: 0 },
-  },
-];
-
-const initialOutputs = [
-  {
-    id: 1,
-    date: "2026-03-16",
-    note: "Produção cano alto",
-    qty: { 34: 6, 35: 4, 36: 2 },
-  },
-  {
-    id: 2,
-    date: "2026-03-17",
-    note: "Produção infantil",
-    qty: { 27: 3, 28: 2, 29: 4 },
-  },
-];
 
 const sumMap = (m = {}) =>
   Object.values(m).reduce((a, v) => a + (Number(v) || 0), 0);
@@ -120,61 +88,92 @@ const SizeGrid = ({ title, sizes, values, editable = false, onChange }) => (
   </Card>
 );
 
+const emptyOrder = () => ({
+  id: null,
+  date: getToday(),
+  supplier: "",
+  note: "",
+  ped: {},
+  rec: {},
+});
+
+const emptyOutput = () => ({
+  id: null,
+  date: getToday(),
+  note: "",
+  qty: {},
+});
+
+const mapPositiveValues = (obj = {}) =>
+  Object.fromEntries(
+    Object.entries(obj).filter(([, value]) => Number(value) > 0)
+  );
+
+const formatQtyMap = (obj = {}) => {
+  const entries = Object.entries(obj).filter(([, v]) => Number(v) > 0);
+  if (!entries.length) return "—";
+  return entries
+    .sort((a, b) => Number(a[0]) - Number(b[0]))
+    .map(([size, qty]) => `${size}: ${qty}`)
+    .join(" • ");
+};
+
 export default function App() {
   const [tab, setTab] = useState("dashboard");
   const [base, setBase] = useState(initialBase);
-  const [orders, setOrders] = useState(initialOrders);
-  const [outputs, setOutputs] = useState(initialOutputs);
+  const [orders, setOrders] = useState([]);
+  const [outputs, setOutputs] = useState([]);
   const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [banner, setBanner] = useState(null);
 
-  const [newOrder, setNewOrder] = useState({
-    id: null,
-    date: "2026-03-17",
-    supplier: "",
-    note: "",
-    ped: {},
-    rec: {},
-  });
+  const [newOrder, setNewOrder] = useState(emptyOrder());
+  const [newOutput, setNewOutput] = useState(emptyOutput());
 
-  const [newOutput, setNewOutput] = useState({
-    id: null,
-    date: "2026-03-17",
-    note: "",
-    qty: {},
-  });
+  const showBanner = (type, text) => {
+    setBanner({ type, text });
+    setTimeout(() => {
+      setBanner(null);
+    }, 3500);
+  };
 
   useEffect(() => {
     async function carregarDados() {
+      setLoading(true);
+
       const { data: ordersData, error: ordersError } = await supabase
         .from("orders")
         .select("*")
         .order("id", { ascending: false });
-
-      if (!ordersError && ordersData) {
-        setOrders(ordersData);
-      }
 
       const { data: outputsData, error: outputsError } = await supabase
         .from("outputs")
         .select("*")
         .order("id", { ascending: false });
 
-      if (!outputsError && outputsData) {
-        setOutputs(outputsData);
-      }
-
       const { data: baseData, error: baseError } = await supabase
         .from("base")
         .select("*")
         .order("size", { ascending: true });
 
+      if (!ordersError && ordersData) {
+        setOrders(ordersData);
+      }
+
+      if (!outputsError && outputsData) {
+        setOutputs(outputsData);
+      }
+
       if (!baseError && baseData && baseData.length > 0) {
         setBase(baseData);
       }
 
-      console.log("ORDERS:", ordersData);
-      console.log("OUTPUTS:", outputsData);
-      console.log("BASE:", baseData);
+      if (ordersError || outputsError || baseError) {
+        showBanner("error", "Alguns dados não puderam ser carregados.");
+        console.log("ERROS AO CARREGAR:", { ordersError, outputsError, baseError });
+      }
+
+      setLoading(false);
     }
 
     carregarDados();
@@ -184,34 +183,38 @@ export default function App() {
     return allSizes.map((size) => {
       const b = base.find((i) => i.size === size) || { initial: 0, min: 0 };
 
-      const received = orders.reduce(
-        (a, o) => a + (Number(o.rec?.[size]) || 0),
-        0
-      );
-      const ordered = orders.reduce(
-        (a, o) => a + (Number(o.ped?.[size]) || 0),
-        0
-      );
+      const received = orders.reduce((acc, order) => {
+        return acc + (Number(order.rec?.[size]) || 0);
+      }, 0);
+
+      const ordered = orders.reduce((acc, order) => {
+        return acc + (Number(order.ped?.[size]) || 0);
+      }, 0);
+
       const pending = Math.max(0, ordered - received);
-      const consumed = outputs.reduce(
-        (a, o) => a + (Number(o.qty?.[size]) || 0),
-        0
-      );
+
+      const consumed = outputs.reduce((acc, output) => {
+        return acc + (Number(output.qty?.[size]) || 0);
+      }, 0);
 
       const current = Number(b.initial || 0) + received - consumed;
       const future = current + pending;
       const minimum = Number(b.min || 0);
+      const status = getStatus(current, minimum, pending);
 
       return {
         size,
-        initial: b.initial || 0,
+        initial: Number(b.initial || 0),
         minimum,
         received,
+        ordered,
         pending,
         consumed,
         current,
         future,
-        status: getStatus(current, minimum, pending),
+        status,
+        isCritical: current < minimum,
+        gap: Math.max(0, minimum - current),
       };
     });
   }, [base, orders, outputs]);
@@ -236,19 +239,79 @@ export default function App() {
   const adultRows = stockRows.filter((r) => r.size >= 34);
   const maxCurrent = Math.max(...stockRows.map((r) => r.current), 1);
 
+  const purchaseSuggestions = useMemo(() => {
+    return stockRows
+      .filter((row) => row.future < row.minimum)
+      .map((row) => ({
+        ...row,
+        suggested: row.minimum - row.future,
+      }));
+  }, [stockRows]);
+
+  const movementHistory = useMemo(() => {
+    const orderMovements = orders.flatMap((order) => {
+      const list = [];
+
+      if (sumMap(order.ped) > 0) {
+        list.push({
+          id: `order-ped-${order.id}`,
+          date: order.date,
+          type: "Pedido",
+          source: order.supplier || "Sem fornecedor",
+          note: order.note || "Sem observação",
+          total: sumMap(order.ped),
+          detail: formatQtyMap(order.ped),
+        });
+      }
+
+      if (sumMap(order.rec) > 0) {
+        list.push({
+          id: `order-rec-${order.id}`,
+          date: order.date,
+          type: "Recebimento",
+          source: order.supplier || "Sem fornecedor",
+          note: order.note || "Sem observação",
+          total: sumMap(order.rec),
+          detail: formatQtyMap(order.rec),
+        });
+      }
+
+      return list;
+    });
+
+    const outputMovements = outputs.map((output) => ({
+      id: `output-${output.id}`,
+      date: output.date,
+      type: "Saída",
+      source: "Produção",
+      note: output.note || "Sem observação",
+      total: sumMap(output.qty),
+      detail: formatQtyMap(output.qty),
+    }));
+
+    return [...orderMovements, ...outputMovements].sort((a, b) => {
+      if (a.date === b.date) return a.type.localeCompare(b.type);
+      return b.date.localeCompare(a.date);
+    });
+  }, [orders, outputs]);
+
   const addOrder = async () => {
-    if (!newOrder.supplier.trim()) return;
+    if (!newOrder.supplier.trim()) {
+      showBanner("error", "Informe o fornecedor do pedido.");
+      return;
+    }
+
+    if (sumMap(newOrder.ped) === 0 && sumMap(newOrder.rec) === 0) {
+      showBanner("error", "Preencha ao menos uma quantidade no pedido.");
+      return;
+    }
 
     const cleaned = {
       date: newOrder.date,
-      supplier: newOrder.supplier,
-      note: newOrder.note,
-      ped: Object.fromEntries(
-        Object.entries(newOrder.ped).filter(([, v]) => Number(v) > 0)
-      ),
-      rec: Object.fromEntries(
-        Object.entries(newOrder.rec).filter(([, v]) => Number(v) > 0)
-      ),
+      supplier: newOrder.supplier.trim(),
+      note: newOrder.note.trim(),
+      ped: mapPositiveValues(newOrder.ped),
+      rec: mapPositiveValues(newOrder.rec),
     };
 
     if (newOrder.id) {
@@ -260,10 +323,13 @@ export default function App() {
 
       if (!error && data) {
         setOrders((prev) =>
-          prev.map((o) => (o.id === newOrder.id ? data[0] : o))
+          prev.map((order) => (order.id === newOrder.id ? data[0] : order))
         );
+        showBanner("success", "Pedido atualizado com sucesso.");
       } else {
         console.log("ERRO AO ATUALIZAR PEDIDO:", error);
+        showBanner("error", "Erro ao atualizar pedido.");
+        return;
       }
     } else {
       const { data, error } = await supabase
@@ -273,30 +339,27 @@ export default function App() {
 
       if (!error && data) {
         setOrders((prev) => [data[0], ...prev]);
+        showBanner("success", "Pedido salvo com sucesso.");
       } else {
         console.log("ERRO AO SALVAR PEDIDO:", error);
+        showBanner("error", "Erro ao salvar pedido.");
+        return;
       }
     }
 
-    setNewOrder({
-      id: null,
-      date: "2026-03-17",
-      supplier: "",
-      note: "",
-      ped: {},
-      rec: {},
-    });
+    setNewOrder(emptyOrder());
   };
 
   const addOutput = async () => {
-    if (!newOutput.note.trim() && sumMap(newOutput.qty) === 0) return;
+    if (!newOutput.note.trim() && sumMap(newOutput.qty) === 0) {
+      showBanner("error", "Informe uma observação ou uma quantidade de saída.");
+      return;
+    }
 
     const cleaned = {
       date: newOutput.date,
-      note: newOutput.note,
-      qty: Object.fromEntries(
-        Object.entries(newOutput.qty).filter(([, v]) => Number(v) > 0)
-      ),
+      note: newOutput.note.trim(),
+      qty: mapPositiveValues(newOutput.qty),
     };
 
     if (newOutput.id) {
@@ -308,10 +371,13 @@ export default function App() {
 
       if (!error && data) {
         setOutputs((prev) =>
-          prev.map((o) => (o.id === newOutput.id ? data[0] : o))
+          prev.map((output) => (output.id === newOutput.id ? data[0] : output))
         );
+        showBanner("success", "Saída atualizada com sucesso.");
       } else {
         console.log("ERRO AO ATUALIZAR SAÍDA:", error);
+        showBanner("error", "Erro ao atualizar saída.");
+        return;
       }
     } else {
       const { data, error } = await supabase
@@ -321,17 +387,15 @@ export default function App() {
 
       if (!error && data) {
         setOutputs((prev) => [data[0], ...prev]);
+        showBanner("success", "Saída salva com sucesso.");
       } else {
         console.log("ERRO AO SALVAR SAÍDA:", error);
+        showBanner("error", "Erro ao salvar saída.");
+        return;
       }
     }
 
-    setNewOutput({
-      id: null,
-      date: "2026-03-17",
-      note: "",
-      qty: {},
-    });
+    setNewOutput(emptyOutput());
   };
 
   const saveBase = async () => {
@@ -342,14 +406,14 @@ export default function App() {
 
       if (error) {
         console.log("ERRO AO SALVAR CONFIGURAÇÃO:", error);
-        alert("Erro ao salvar configuração.");
+        showBanner("error", "Erro ao salvar configuração.");
         return;
       }
 
-      alert("Configuração salva com sucesso!");
+      showBanner("success", "Configuração salva com sucesso.");
     } catch (err) {
       console.log("ERRO GERAL AO SALVAR CONFIGURAÇÃO:", err);
-      alert("Erro ao salvar configuração.");
+      showBanner("error", "Erro ao salvar configuração.");
     }
   };
 
@@ -363,17 +427,13 @@ export default function App() {
       setOrders((prev) => prev.filter((order) => order.id !== id));
 
       if (newOrder.id === id) {
-        setNewOrder({
-          id: null,
-          date: "2026-03-17",
-          supplier: "",
-          note: "",
-          ped: {},
-          rec: {},
-        });
+        setNewOrder(emptyOrder());
       }
+
+      showBanner("success", "Pedido excluído com sucesso.");
     } else {
       console.log("ERRO AO EXCLUIR PEDIDO:", error);
+      showBanner("error", "Erro ao excluir pedido.");
     }
   };
 
@@ -387,15 +447,13 @@ export default function App() {
       setOutputs((prev) => prev.filter((output) => output.id !== id));
 
       if (newOutput.id === id) {
-        setNewOutput({
-          id: null,
-          date: "2026-03-17",
-          note: "",
-          qty: {},
-        });
+        setNewOutput(emptyOutput());
       }
+
+      showBanner("success", "Saída excluída com sucesso.");
     } else {
       console.log("ERRO AO EXCLUIR SAÍDA:", error);
+      showBanner("error", "Erro ao excluir saída.");
     }
   };
 
@@ -414,7 +472,7 @@ export default function App() {
         </thead>
         <tbody>
           {rows.map((r) => (
-            <tr key={r.size}>
+            <tr key={r.size} className={r.isCritical ? "row-critical" : ""}>
               <td>
                 <strong>{r.size}</strong>
               </td>
@@ -434,6 +492,20 @@ export default function App() {
     </div>
   );
 
+  if (loading) {
+    return (
+      <div className="page">
+        <div className="container">
+          <div className="card">
+            <div className="card-body">
+              <div className="notice-info">Carregando dados do estoque...</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <div className="container">
@@ -450,6 +522,17 @@ export default function App() {
           </div>
           <div className="pill">Infantil 25–33 • Adulto 34–44</div>
         </header>
+
+        {banner && (
+          <div
+            className={
+              banner.type === "success" ? "notice-success" : "notice-error"
+            }
+            style={{ marginBottom: "16px" }}
+          >
+            {banner.text}
+          </div>
+        )}
 
         <section className="metrics">
           <MetricCard
@@ -496,6 +579,9 @@ export default function App() {
           </TabButton>
           <TabButton active={tab === "saidas"} onClick={() => setTab("saidas")}>
             Saídas
+          </TabButton>
+          <TabButton active={tab === "historico"} onClick={() => setTab("historico")}>
+            Histórico
           </TabButton>
           <TabButton active={tab === "config"} onClick={() => setTab("config")}>
             Configuração
@@ -600,24 +686,25 @@ export default function App() {
                 </div>
               </Card>
 
-              <Card title="Leitura rápida">
-                <div className="quick-grid">
-                  <div className="quick quick-green">
-                    <span>Atual</span>
-                    <strong>{totals.current}</strong>
-                  </div>
-                  <div className="quick quick-yellow">
-                    <span>Em pedido</span>
-                    <strong>{totals.pending}</strong>
-                  </div>
-                  <div className="quick quick-blue">
-                    <span>Futuro</span>
-                    <strong>{totals.future}</strong>
-                  </div>
-                  <div className="quick quick-red">
-                    <span>Consumido</span>
-                    <strong>{totals.consumed}</strong>
-                  </div>
+              <Card title="Sugestão de compra">
+                <div className="stack-sm">
+                  {purchaseSuggestions.length === 0 ? (
+                    <div className="notice-success">Nenhuma compra necessária agora.</div>
+                  ) : (
+                    purchaseSuggestions.map((item) => (
+                      <div key={item.size} className="mini-card white">
+                        <div>
+                          <div>
+                            <strong>Nº {item.size}</strong>
+                          </div>
+                          <div className="small muted">
+                            Futuro {item.future} • Mín. {item.minimum}
+                          </div>
+                        </div>
+                        <span className="outline-tag">Comprar {item.suggested}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
               </Card>
             </div>
@@ -648,9 +735,9 @@ export default function App() {
                 values={newOrder.ped}
                 editable
                 onChange={(size, value) =>
-                  setNewOrder((p) => ({
-                    ...p,
-                    ped: { ...p.ped, [size]: Number(value) || 0 },
+                  setNewOrder((prev) => ({
+                    ...prev,
+                    ped: { ...prev.ped, [size]: Number(value) || 0 },
                   }))
                 }
               />
@@ -660,37 +747,44 @@ export default function App() {
                   <InputField
                     type="date"
                     value={newOrder.date}
-                    onChange={(e) => setNewOrder((p) => ({ ...p, date: e.target.value }))}
+                    onChange={(e) => setNewOrder((prev) => ({ ...prev, date: e.target.value }))}
                   />
+
                   <InputField
                     placeholder="Fornecedor"
                     value={newOrder.supplier}
                     onChange={(e) =>
-                      setNewOrder((p) => ({ ...p, supplier: e.target.value }))
+                      setNewOrder((prev) => ({ ...prev, supplier: e.target.value }))
                     }
                   />
+
                   <InputField
                     placeholder="Observação"
                     value={newOrder.note}
-                    onChange={(e) => setNewOrder((p) => ({ ...p, note: e.target.value }))}
+                    onChange={(e) => setNewOrder((prev) => ({ ...prev, note: e.target.value }))}
                   />
 
                   <div className="small muted">
-                    Total pedido: <strong style={{ color: "#0f172a" }}>{sumMap(newOrder.ped)}</strong>
+                    Total pedido:{" "}
+                    <strong style={{ color: "#0f172a" }}>{sumMap(newOrder.ped)}</strong>
                   </div>
 
                   <SizeGrid
-                    title="Recebido agora"
+                    title="Recebido"
                     sizes={allSizes}
                     values={newOrder.rec}
                     editable
                     onChange={(size, value) =>
-                      setNewOrder((p) => ({
-                        ...p,
-                        rec: { ...p.rec, [size]: Number(value) || 0 },
+                      setNewOrder((prev) => ({
+                        ...prev,
+                        rec: { ...prev.rec, [size]: Number(value) || 0 },
                       }))
                     }
                   />
+
+                  <div className="small muted">
+                    Total recebido: <strong>{sumMap(newOrder.rec)}</strong>
+                  </div>
 
                   <div className="actions">
                     <button className="btn btn-primary" onClick={addOrder}>
@@ -700,16 +794,7 @@ export default function App() {
                     {newOrder.id && (
                       <button
                         className="btn btn-secondary"
-                        onClick={() =>
-                          setNewOrder({
-                            id: null,
-                            date: "2026-03-17",
-                            supplier: "",
-                            note: "",
-                            ped: {},
-                            rec: {},
-                          })
-                        }
+                        onClick={() => setNewOrder(emptyOrder())}
                       >
                         Cancelar
                       </button>
@@ -721,52 +806,63 @@ export default function App() {
 
             <Card title="Pedidos lançados">
               <div className="stack-sm">
-                {orders.map((order) => {
-                  const totalPed = sumMap(order.ped);
-                  const totalRec = sumMap(order.rec);
-                  const totalPend = Math.max(0, totalPed - totalRec);
+                {orders.length === 0 ? (
+                  <div className="notice-info">Nenhum pedido lançado ainda.</div>
+                ) : (
+                  orders.map((order) => {
+                    const totalPed = sumMap(order.ped);
+                    const totalRec = sumMap(order.rec);
+                    const totalPend = Math.max(0, totalPed - totalRec);
+                    const progress = totalPed ? (totalRec / totalPed) * 100 : 0;
 
-                  return (
-                    <div key={order.id} className="item-card">
-                      <div className="row-between">
-                        <div
-                          onClick={() =>
-                            setNewOrder({
-                              id: order.id,
-                              date: order.date,
-                              supplier: order.supplier,
-                              note: order.note,
-                              ped: { ...order.ped },
-                              rec: { ...order.rec },
-                            })
-                          }
-                          style={{ cursor: "pointer", flex: 1 }}
-                        >
-                          <div>
-                            <strong>{order.supplier}</strong>
+                    return (
+                      <div key={order.id} className="item-card">
+                        <div className="row-between">
+                          <div
+                            onClick={() =>
+                              setNewOrder({
+                                id: order.id,
+                                date: order.date,
+                                supplier: order.supplier || "",
+                                note: order.note || "",
+                                ped: { ...(order.ped || {}) },
+                                rec: { ...(order.rec || {}) },
+                              })
+                            }
+                            style={{ cursor: "pointer", flex: 1 }}
+                          >
+                            <div>
+                              <strong>{order.supplier}</strong>
+                            </div>
+                            <div className="small muted">
+                              {order.date} • {order.note || "Sem observação"}
+                            </div>
                           </div>
-                          <div className="small muted">
-                            {order.date} • {order.note || "Sem observação"}
+
+                          <div className="tag-row">
+                            <span className="outline-tag">Pedido {totalPed}</span>
+                            <span className="outline-tag">Recebido {totalRec}</span>
+                            <span className="outline-tag">Falta {totalPend}</span>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => deleteOrder(order.id)}
+                            >
+                              Excluir
+                            </button>
                           </div>
                         </div>
 
-                        <div className="tag-row">
-                          <span className="outline-tag">Pedido {totalPed}</span>
-                          <span className="outline-tag">Recebido {totalRec}</span>
-                          <span className="outline-tag">Falta {totalPend}</span>
-                          <button
-                            className="btn btn-secondary"
-                            onClick={() => deleteOrder(order.id)}
-                          >
-                            Excluir
-                          </button>
+                        <div style={{ marginTop: "10px" }}>
+                          <ProgressBar value={progress} className="bar-blue" />
+                        </div>
+
+                        <div className="tiny muted" style={{ marginTop: "8px" }}>
+                          Clique no texto para editar
                         </div>
                       </div>
-
-                      <div className="tiny muted">Clique no texto para editar</div>
-                    </div>
-                  );
-                })}
+                    );
+                  })
+                )}
               </div>
             </Card>
           </div>
@@ -781,9 +877,9 @@ export default function App() {
                 values={newOutput.qty}
                 editable
                 onChange={(size, value) =>
-                  setNewOutput((p) => ({
-                    ...p,
-                    qty: { ...p.qty, [size]: Number(value) || 0 },
+                  setNewOutput((prev) => ({
+                    ...prev,
+                    qty: { ...prev.qty, [size]: Number(value) || 0 },
                   }))
                 }
               />
@@ -793,13 +889,13 @@ export default function App() {
                   <InputField
                     type="date"
                     value={newOutput.date}
-                    onChange={(e) => setNewOutput((p) => ({ ...p, date: e.target.value }))}
+                    onChange={(e) => setNewOutput((prev) => ({ ...prev, date: e.target.value }))}
                   />
 
                   <InputField
                     placeholder="Observação da produção"
                     value={newOutput.note}
-                    onChange={(e) => setNewOutput((p) => ({ ...p, note: e.target.value }))}
+                    onChange={(e) => setNewOutput((prev) => ({ ...prev, note: e.target.value }))}
                   />
 
                   <div className="small muted">
@@ -814,14 +910,7 @@ export default function App() {
                     {newOutput.id && (
                       <button
                         className="btn btn-secondary"
-                        onClick={() =>
-                          setNewOutput({
-                            id: null,
-                            date: "2026-03-17",
-                            note: "",
-                            qty: {},
-                          })
-                        }
+                        onClick={() => setNewOutput(emptyOutput())}
                       >
                         Cancelar
                       </button>
@@ -833,40 +922,78 @@ export default function App() {
 
             <Card title="Saídas lançadas">
               <div className="stack-sm">
-                {outputs.map((out) => (
-                  <div key={out.id} className="item-card">
-                    <div className="row-between">
-                      <div
-                        onClick={() =>
-                          setNewOutput({
-                            id: out.id,
-                            date: out.date,
-                            note: out.note,
-                            qty: { ...out.qty },
-                          })
-                        }
-                        style={{ cursor: "pointer", flex: 1 }}
-                      >
-                        <div>
-                          <strong>{out.note || "Saída sem observação"}</strong>
+                {outputs.length === 0 ? (
+                  <div className="notice-info">Nenhuma saída lançada ainda.</div>
+                ) : (
+                  outputs.map((out) => (
+                    <div key={out.id} className="item-card">
+                      <div className="row-between">
+                        <div
+                          onClick={() =>
+                            setNewOutput({
+                              id: out.id,
+                              date: out.date,
+                              note: out.note || "",
+                              qty: { ...(out.qty || {}) },
+                            })
+                          }
+                          style={{ cursor: "pointer", flex: 1 }}
+                        >
+                          <div>
+                            <strong>{out.note || "Saída sem observação"}</strong>
+                          </div>
+                          <div className="small muted">{out.date}</div>
                         </div>
-                        <div className="small muted">{out.date}</div>
+
+                        <div className="tag-row">
+                          <div className="outline-tag">Consumido {sumMap(out.qty)}</div>
+                          <button
+                            className="btn btn-secondary"
+                            onClick={() => deleteOutput(out.id)}
+                          >
+                            Excluir
+                          </button>
+                        </div>
                       </div>
 
-                      <div className="tag-row">
-                        <div className="outline-tag">Consumido {sumMap(out.qty)}</div>
-                        <button
-                          className="btn btn-secondary"
-                          onClick={() => deleteOutput(out.id)}
-                        >
-                          Excluir
-                        </button>
+                      <div className="tiny muted">Clique no texto para editar</div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </Card>
+          </div>
+        )}
+
+        {tab === "historico" && (
+          <div className="stack">
+            <Card title="Histórico de movimentações">
+              <div className="stack-sm">
+                {movementHistory.length === 0 ? (
+                  <div className="notice-info">Nenhuma movimentação encontrada.</div>
+                ) : (
+                  movementHistory.map((item) => (
+                    <div key={item.id} className="item-card">
+                      <div className="row-between">
+                        <div>
+                          <div>
+                            <strong>{item.type}</strong> • {item.source}
+                          </div>
+                          <div className="small muted">
+                            {item.date} • {item.note}
+                          </div>
+                        </div>
+                        <div className="tag-row">
+                          <span className="outline-tag">Qtd {item.total}</span>
+                        </div>
+                      </div>
+
+                      <div className="tiny muted" style={{ marginTop: "8px" }}>
+                        {item.detail}
                       </div>
                     </div>
-
-                    <div className="tiny muted">Clique no texto para editar</div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </Card>
           </div>

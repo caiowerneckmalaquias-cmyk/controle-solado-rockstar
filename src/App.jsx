@@ -137,6 +137,51 @@ const addOrder = async () => {
 
   setNewOutput({ id: null, date: "2026-03-17", note: "", qty: {} });
 };
+
+const saveBaseRow = async (size, field, value) => {
+  const numericValue = Number(value) || 0;
+
+  setBase((prev) =>
+    prev.map((item) =>
+      item.size === size ? { ...item, [field]: numericValue } : item
+    )
+  );
+
+  const currentRow = base.find((item) => item.size === size);
+
+  if (currentRow) {
+    const updatedRow = {
+      size,
+      initial: field === "initial" ? numericValue : currentRow.initial,
+      min: field === "min" ? numericValue : currentRow.min,
+    };
+
+    const { data: existing } = await supabase
+      .from("base")
+      .select("*")
+      .eq("size", size)
+      .maybeSingle();
+
+    if (existing) {
+      const { error } = await supabase
+        .from("base")
+        .update(updatedRow)
+        .eq("size", size);
+
+      if (error) {
+        console.log("ERRO AO ATUALIZAR BASE:", error);
+      }
+    } else {
+      const { error } = await supabase
+        .from("base")
+        .insert([updatedRow]);
+
+      if (error) {
+        console.log("ERRO AO INSERIR BASE:", error);
+      }
+    }
+  }
+};
  const table=(rows)=><div className="table-wrap"><table className="stock-table"><thead><tr><th>Nº</th><th>Em pedido</th><th>Atual</th><th>Futuro</th><th>Mínimo</th><th>Status</th></tr></thead><tbody>{rows.map(r=><tr key={r.size}><td><strong>{r.size}</strong></td><td className="num">{r.pending}</td><td className="num">{r.current}</td><td className="num"><strong>{r.future}</strong></td><td className="num">{r.minimum}</td><td className="num"><span className={statusClasses(r.status)}>{r.status}</span></td></tr>)}</tbody></table></div>;
  return <div className="page"><div className="container">
  <header className="hero"><div><p className="eyebrow">Calçados Rock Star</p><div className="hero-brand"><img src="/logo-rockstar.png" alt="Rock Star" className="hero-logo"/><div><h1>CONTROLE DE SOLADO</h1><p className="subtle">App instalável no celular • branco, vermelho e azul</p></div></div></div><div className="pill">Infantil 25–33 • Adulto 34–44</div></header>
@@ -147,6 +192,6 @@ const addOrder = async () => {
  {tab==="estoque"&&<div className="stack"><Card><InputField placeholder="Pesquisar numeração..." value={search} onChange={e=>setSearch(e.target.value)}/></Card><Card title="Controle completo">{table(filteredRows)}</Card></div>}
  {tab==="pedidos"&&<div className="stack"><div className="grid-form"><SizeGrid title="Pedido de compra" sizes={allSizes} values={newOrder.ped} editable onChange={(size,value)=>setNewOrder(p=>({...p,ped:{...p.ped,[size]:Number(value)||0}}))}/><Card title={newOrder.id?"Editar pedido":"Dados do pedido"}><div className="stack-sm"><InputField type="date" value={newOrder.date} onChange={e=>setNewOrder(p=>({...p,date:e.target.value}))}/><InputField placeholder="Fornecedor" value={newOrder.supplier} onChange={e=>setNewOrder(p=>({...p,supplier:e.target.value}))}/><InputField placeholder="Observação" value={newOrder.note} onChange={e=>setNewOrder(p=>({...p,note:e.target.value}))}/><div className="small muted">Total pedido: <strong style={{color:"#0f172a"}}>{sumMap(newOrder.ped)}</strong></div><SizeGrid title="Recebido agora" sizes={allSizes} values={newOrder.rec} editable onChange={(size,value)=>setNewOrder(p=>({...p,rec:{...p.rec,[size]:Number(value)||0}}))}/><div className="actions"><button className="btn btn-primary" onClick={addOrder}>{newOrder.id?"Atualizar pedido":"Salvar pedido"}</button>{newOrder.id&&<button className="btn btn-secondary" onClick={()=>setNewOrder({id:null,date:"2026-03-17",supplier:"",note:"",ped:{},rec:{}})}>Cancelar</button>}</div></div></Card></div><Card title="Pedidos lançados"><div className="stack-sm">{orders.map(order=>{const totalPed=sumMap(order.ped), totalRec=sumMap(order.rec), totalPend=Math.max(0,totalPed-totalRec); return <div key={order.id} className="item-card" onClick={()=>setNewOrder({id:order.id,date:order.date,supplier:order.supplier,note:order.note,ped:{...order.ped},rec:{...order.rec}})}><div className="row-between"><div><div><strong>{order.supplier}</strong></div><div className="small muted">{order.date} • {order.note||"Sem observação"}</div></div><div className="tag-row"><span className="outline-tag">Pedido {totalPed}</span><span className="outline-tag">Recebido {totalRec}</span><span className="outline-tag">Falta {totalPend}</span></div></div><div className="tiny muted">Clique para editar</div></div>})}</div></Card></div>}
  {tab==="saidas"&&<div className="stack"><div className="grid-form"><SizeGrid title="Lançar saída de produção" sizes={allSizes} values={newOutput.qty} editable onChange={(size,value)=>setNewOutput(p=>({...p,qty:{...p.qty,[size]:Number(value)||0}}))}/><Card title={newOutput.id?"Editar saída":"Dados da saída"}><div className="stack-sm"><InputField type="date" value={newOutput.date} onChange={e=>setNewOutput(p=>({...p,date:e.target.value}))}/><InputField placeholder="Observação da produção" value={newOutput.note} onChange={e=>setNewOutput(p=>({...p,note:e.target.value}))}/><div className="small muted">Total consumido: <strong style={{color:"#0f172a"}}>{sumMap(newOutput.qty)}</strong></div><div className="actions"><button className="btn btn-primary" onClick={addOutput}>{newOutput.id?"Atualizar saída":"Salvar saída"}</button>{newOutput.id&&<button className="btn btn-secondary" onClick={()=>setNewOutput({id:null,date:"2026-03-17",note:"",qty:{}})}>Cancelar</button>}</div></div></Card></div><Card title="Saídas lançadas"><div className="stack-sm">{outputs.map(out=><div key={out.id} className="item-card" onClick={()=>setNewOutput({id:out.id,date:out.date,note:out.note,qty:{...out.qty}})}><div className="row-between"><div><div><strong>{out.note||"Saída sem observação"}</strong></div><div className="small muted">{out.date}</div></div><div className="outline-tag">Consumido {sumMap(out.qty)}</div></div><div className="tiny muted">Clique para editar</div></div>)}</div></Card></div>}
- {tab==="config"&&<Card title="Saldo inicial e mínimo">{table && <div className="table-wrap"><table className="stock-table"><thead><tr><th>Nº</th><th>Saldo inicial</th><th>Mínimo</th></tr></thead><tbody>{base.map(row=><tr key={row.size}><td><strong>{row.size}</strong></td><td className="num"><InputField type="number" className="mini-input" value={row.initial} onChange={e=>setBase(prev=>prev.map(item=>item.size===row.size?{...item,initial:Number(e.target.value)||0}:item))}/></td><td className="num"><InputField type="number" className="mini-input" value={row.min} onChange={e=>setBase(prev=>prev.map(item=>item.size===row.size?{...item,min:Number(e.target.value)||0}:item))}/></td></tr>)}</tbody></table></div>}</Card>}
+ {tab==="config"&&<Card title="Saldo inicial e mínimo">{table && <div className="table-wrap"><table className="stock-table"><thead><tr><th>Nº</th><th>Saldo inicial</th><th>Mínimo</th></tr></thead><tbody>{base.map(row=><tr key={row.size}><td><strong>{row.size}</strong></td><td className="num"><InputField type="number" className="mini-input" value={row.initial} onChange={e => saveBaseRow(row.size, "initial", e.target.value)}/></td><td className="num"><InputField type="number" className="mini-input" value={row.min} onChange={e => saveBaseRow(row.size, "min", e.target.value)}/></td></tr>)}</tbody></table></div>}</Card>}
  </div></div>;
 }
